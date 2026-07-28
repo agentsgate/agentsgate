@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { MCPOperation, ProxyDecision, ExecutionResult, OperationLog } from '../../types/interfaces.js';
 import type { StateStore } from '../m2-store/index.js';
-import { stampLog } from '../../utils/audit-hmac.js';
+import { stampLog, GENESIS_HMAC } from '../../utils/audit-hmac.js';
 
 /**
  * Parameter key patterns whose values should be redacted before persisting.
@@ -110,18 +110,38 @@ export class OperationLogger {
       ? { ...operation, params: redactParams(operation.params, extraRedactKeys) }
       : operation;
 
-    let entry: OperationLog = {
+    const entry: OperationLog = {
       operationId: operation.id,
       operation: safeOperation,
       decision,
       executionResult,
       createdAt: new Date(),
     };
-    if (this.signingSecret) {
-      entry = stampLog(entry, this.signingSecret);
+
+    if (!this.signingSecret) {
+      await this.store.saveOperationLog(entry);
+      return entry;
     }
-    await this.store.saveOperationLog(entry);
-    return entry;
+
+    // Signing chains each record onto the one before it, so reading the tip and
+    // appending must not interleave with another log() call — two writers
+    // reading the same tip would fork the chain and every later record would
+    // fail verification. Serialised through a promise chain rather than a lock:
+    // the whole path is async and single-process.
+    const signed = this.appendChained(entry);
+    this.chainTail = signed.then(() => undefined, () => undefined);
+    return signed;
+  }
+
+  /** Serialisation point for chained writes. See log(). */
+  private chainTail: Promise<void> = Promise.resolve();
+
+  private async appendChained(entry: OperationLog): Promise<OperationLog> {
+    await this.chainTail;
+    const prev = (await this.store.getLastLogHmac()) ?? GENESIS_HMAC;
+    const signed = stampLog(entry, this.signingSecret!, prev);
+    await this.store.saveOperationLog(signed);
+    return signed;
   }
 
   /** Retrieve a single log entry by operation ID. Returns null if not found. */

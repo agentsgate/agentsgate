@@ -46,6 +46,13 @@ export interface DashboardOptions {
    */
   roles?: Record<string, 'viewer' | 'approver' | 'admin'>;
   /**
+   * Hostnames accepted in the Host header, as DNS rebinding defence.
+   * Defaults to localhost, 127.0.0.1, ::1 and the bind address. Set this when
+   * the dashboard is reached through a reverse proxy or under another name —
+   * the proxy forwards its own Host, which would otherwise be refused.
+   */
+  allowedHosts?: string[];
+  /**
    * Optional callback invoked when `POST /sessions/:id/expire` is called.
    * Use this to add the session ID to the proxy pipeline's expiredSessions Set.
    */
@@ -139,7 +146,21 @@ export class DashboardAPI {
   private readonly rollbackEngine?: RollbackEngine;
   private readonly telemetry?: TelemetryService;
   private readonly apiKey?: string;
-  private readonly roles?: Record<string, 'viewer' | 'approver' | 'admin'>;
+  /**
+   * Key → role, held in a Map rather than a plain object.
+   *
+   * The lookup key is the caller-supplied `X-API-Key` header. Indexing a plain
+   * object with it reaches Object.prototype, so `X-API-Key: constructor` (and
+   * toString, valueOf, hasOwnProperty, __proto__, isPrototypeOf) returned a
+   * truthy value and passed the "is this a known key" check — an unauthenticated
+   * reader could then read every operation, including tool arguments and
+   * results. A Map has no prototype chain, so only real keys match.
+   */
+  private readonly roles?: Map<string, 'viewer' | 'approver' | 'admin'>;
+  /** Hostnames accepted in the Host header. See assertAllowedHost. */
+  private readonly allowedHosts?: string[];
+  /** Address passed to listen(), used to build the default Host allowlist. */
+  private bindHost = '127.0.0.1';
   private readonly onSessionExpire?: (sessionId: string) => void;
   /**
    * Clock used for every rolling-window analytics cutoff (24h/7d/30d counters,
@@ -200,7 +221,11 @@ export class DashboardAPI {
     this.rollbackEngine = options.rollbackEngine;
     this.telemetry = options.telemetry;
     this.apiKey = options.apiKey;
-    this.roles = options.roles;
+    // Object.entries copies own enumerable properties only, so a literal
+    // "__proto__" key in the config becomes an ordinary Map entry rather than
+    // altering any prototype.
+    this.roles = options.roles ? new Map(Object.entries(options.roles)) : undefined;
+    this.allowedHosts = options.allowedHosts;
     this.onSessionExpire = options.onSessionExpire;
     this.now = options.now ?? Date.now;
     this.circuitBreaker = options.circuitBreaker;
@@ -217,6 +242,7 @@ export class DashboardAPI {
   }
 
   async start(port: number, host = '127.0.0.1'): Promise<void> {
+    this.bindHost = host;
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => {
         void this.route(req, res);
@@ -243,12 +269,60 @@ export class DashboardAPI {
     return (addr as import('net').AddressInfo).port;
   }
 
+  // ── Host allowlist (DNS rebinding) ──────────────────────────────────────────
+
+  /**
+   * Hostnames this dashboard will answer to.
+   *
+   * Binding to loopback keeps other machines out, but it does not stop a web
+   * page the operator visits: the attacker points a hostname they control at
+   * 127.0.0.1, and the browser then treats their script as same-origin with
+   * the dashboard — able to set headers and read responses. Since the default
+   * configuration sets no API key, that would otherwise mean full admin access
+   * to the operation history and to rollback.
+   *
+   * Checking Host closes it, because the browser always sends the attacker's
+   * hostname, never the one we bind to.
+   */
+  private allowedHostnames(): string[] {
+    if (this.allowedHosts && this.allowedHosts.length > 0) return this.allowedHosts;
+    const base = ['localhost', '127.0.0.1', '::1'];
+    if (!base.includes(this.bindHost)) base.push(this.bindHost);
+    return base;
+  }
+
+  /** Hostname portion of a Host header, minus the port and any IPv6 brackets. */
+  private static hostnameOf(hostHeader: string): string {
+    if (hostHeader.startsWith('[')) {
+      const end = hostHeader.indexOf(']');
+      return end === -1 ? hostHeader.slice(1) : hostHeader.slice(1, end);
+    }
+    const colon = hostHeader.lastIndexOf(':');
+    return colon === -1 ? hostHeader : hostHeader.slice(0, colon);
+  }
+
   // ── Router ──────────────────────────────────────────────────────────────────
 
   private async route(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', `http://localhost`);
     const segments = url.pathname.replace(/^\//, '').split('/');
     const method = req.method ?? 'GET';
+
+    // Rebinding check runs before authentication: a request carrying someone
+    // else's hostname is refused whether or not it has a valid key. A missing
+    // Host header is allowed — browsers always send one, so its absence means
+    // a non-browser client and cannot be a rebinding attack.
+    const hostHeader = req.headers.host;
+    if (hostHeader !== undefined) {
+      const hostname = DashboardAPI.hostnameOf(hostHeader).toLowerCase();
+      const allowed = this.allowedHostnames().some(h => h.toLowerCase() === hostname);
+      if (!allowed) {
+        return json(res, 403, {
+          error: 'Host not allowed',
+          detail: `Refusing request for host "${hostname}". Set dashboard.allowedHosts if this dashboard is reached through a proxy or a different name.`,
+        });
+      }
+    }
 
     // ── API Key authentication + RBAC (T415) ────────────────────────────────
     // /health is always public (liveness probes); everything else requires the key.
@@ -268,12 +342,12 @@ export class DashboardAPI {
           if (provBuf.length === apiBuf.length && crypto.timingSafeEqual(provBuf, apiBuf)) {
             userRole = 'admin';
           } else {
-            const role = this.roles[provided];
+            const role = this.roles.get(provided);
             if (!role) return json(res, 401, { error: 'Unauthorized' });
             userRole = role;
           }
         } else {
-          const role = this.roles[provided];
+          const role = this.roles.get(provided);
           if (!role) return json(res, 401, { error: 'Unauthorized' });
           userRole = role;
         }

@@ -89,16 +89,51 @@ errors in production.
 - `dashboard.roles` maps API keys to `viewer` (read-only), `approver` (viewer +
   approve/reject), or `admin` (full access, including rollback, session expiry,
   and circuit-breaker reset). Unknown keys are denied. A `dashboard.apiKey` set
-  alongside `roles` is treated as an admin key.
+  alongside `roles` is treated as an admin key. Keys are held in a `Map`, so a
+  header naming a JavaScript built-in cannot be mistaken for a configured key.
 - There is no user database, no login flow, and no key rotation mechanism —
   rotate by editing config and restarting.
+
+### DNS rebinding
+
+Binding to loopback keeps other machines out, but it does not stop a page the
+operator visits. An attacker points a hostname they control at `127.0.0.1`;
+the browser then treats their script as same-origin with the dashboard, able to
+set headers and read responses. With no API key configured — the default — that
+would be full admin access to the operation history and to rollback.
+
+Every request's `Host` header is therefore checked against an allowlist, before
+authentication and before routing. The default list is `localhost`,
+`127.0.0.1`, `::1` and the configured `proxy.host`; anything else gets a 403.
+A browser always sends the attacker's hostname, never the one AgentsGate binds
+to, so the attack does not survive the check.
+
+Set `dashboard.allowedHosts` when the dashboard is reached under another name —
+through a reverse proxy, or by hostname on a private network. The list replaces
+the defaults rather than extending them, so include the loopback names if you
+still want them.
 
 ### Audit log integrity
 
 - With `audit.signingSecret` set, every operation log is HMAC-SHA256 signed
-  before it is persisted. Verify with `agentsgate audit --verify`.
+  before it is persisted. Verify with `agentsgate verify-logs`.
+- **The log is chained.** Each record's signature covers the signature of the
+  record before it, and that predecessor is stored on the entry as `prevHmac`.
+  Per-record signatures alone would detect a record being *edited* but not one
+  being *deleted* — an attacker with write access to the database could simply
+  drop the rows describing what they did and every remaining signature would
+  still verify. Chaining makes a removal break the link at that point, and
+  verification reports where.
+- Verification reports `Chain: intact` or the record number where the chain
+  breaks. Records after a break are reported as unverified rather than valid:
+  once a link is missing, the expected predecessor for everything downstream is
+  unknown.
+- **Truncating the newest records is not detected.** Dropping entries from the
+  tail leaves a shorter but internally consistent chain. Detecting that needs
+  the expected tip recorded somewhere the attacker cannot reach — ship the
+  latest `hmac` off-box if that matters to you.
 - The signing secret must stay confidential; if it leaks, log integrity can no
-  longer be established.
+  longer be established — a holder of the secret can rewrite the whole chain.
 - Logs live in SQLite on local disk. Restrict the file with OS permissions —
   they contain full agent inputs and outputs.
 
@@ -205,7 +240,7 @@ decide whether they matter for your deployment.
 |------|--------|------------|
 | Proxy transport is unauthenticated | Anything that reaches the port can forward operations | Loopback-only default; reverse proxy with auth if exposed |
 | Dashboard auth is opt-in | No key set → full admin access to anyone who can reach the port | Set `dashboard.apiKey`; startup warns when exposed without one |
-| No DNS rebinding protection | A malicious web page could drive a browser to reach a loopback-bound dashboard | Set `dashboard.apiKey` — the `X-API-Key` header cannot be forged cross-origin |
+| Audit log tail truncation | Dropping the newest records leaves a consistent chain | Record the latest `hmac` off-box; edits and mid-log deletions are detected |
 | ReDoS guard is heuristic | A novel catastrophic pattern could evade the detector | 4096-char input cap bounds worst case; treat policy files as trusted input |
 | Telemetry senders allow private/loopback targets | A telemetry URL pointing at an internal host is dialled | Deliberate — internal collectors are the normal deployment; link-local/metadata is still refused |
 | No built-in TLS | Traffic is plaintext on the wire | Terminate TLS at a reverse proxy |

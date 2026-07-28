@@ -63,6 +63,24 @@ and the work that followed them.
 
 ### Security
 
+- **Fixed an authentication bypass in dashboard RBAC.** Key lookup indexed a
+  plain object with the caller-supplied `X-API-Key`, so a header naming a
+  JavaScript built-in — `constructor`, `toString`, `__proto__` and others —
+  resolved to a truthy value and passed the "is this a known key" check. Anyone
+  could then read every operation, including tool arguments and results. Keys
+  are now held in a `Map`, which has no prototype chain.
+- **Added DNS rebinding defence.** The `Host` header is checked against an
+  allowlist before authentication and before routing. Binding to loopback does
+  not stop a page the operator visits: an attacker pointing their own hostname
+  at 127.0.0.1 becomes same-origin with the dashboard, and with no API key set
+  — the default — that meant full admin access, including rollback.
+  Configurable via `dashboard.allowedHosts`.
+- **The audit log is now chained.** Each record's signature covers its
+  predecessor's, recorded on the entry as `prevHmac`. Per-record signatures
+  detected a record being edited but not one being deleted — rows could be
+  dropped and every remaining signature would still verify. Verification now
+  reports where a chain breaks. This changes the signature format: records
+  written by earlier builds will not verify.
 - **Fixed stored XSS in the dashboard, reachable by the monitored agent.** The
   quick-rule buttons embedded the operation's tool, method and agent id into an
   `onclick` attribute as unescaped JSON, so an agent that named a tool

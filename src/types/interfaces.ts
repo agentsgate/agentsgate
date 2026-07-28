@@ -107,6 +107,18 @@ export interface OperationLog {
    * Absence does not mean the log is invalid — it may predate signing.
    */
   hmac?: string;
+  /**
+   * Signature of the record written immediately before this one, or "" for the
+   * first. It is part of the signed content, which is what turns the log into a
+   * chain: removing a record leaves the next one committing to a predecessor
+   * that is no longer there.
+   *
+   * Recorded on the entry so a single record can still be checked on its own —
+   * `verifyLog(log, secret, log.prevHmac)` — without holding the record before
+   * it. Continuity is a separate, cheap check that each prevHmac matches the
+   * actual predecessor's hmac.
+   */
+  prevHmac?: string;
 }
 
 /**

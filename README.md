@@ -583,6 +583,8 @@ Config file: `~/.agentsgate/config.json`
 | `rateLimit.maxOpsPerMinute` | `60` | Max operations per agent per minute |
 | `logs.retentionDays` | — | Days to retain operation logs before auto-pruning |
 | `dashboard.apiKey` | — | `X-API-Key` required on all dashboard endpoints except `GET /health`. **Unset means no authentication** — required whenever the dashboard is reachable beyond loopback |
+| `dashboard.roles` | — | Per-key roles: `viewer` / `approver` / `admin`. When set, every key must appear here or the request is rejected |
+| `dashboard.allowedHosts` | loopback + `proxy.host` | Hostnames accepted in the `Host` header (DNS rebinding defence). Set when reaching the dashboard through a reverse proxy or another name |
 | `audit.signingSecret` | — | HMAC-SHA256 secret for operation log signing |
 | `team` | — | Namespace identifier — selects the database file (`data-{team}.db`) |
 

@@ -117,6 +117,42 @@ export class StateStore {
 
   // ── OperationLog ──────────────────────────────────────────────────────────
 
+  /**
+   * Signature of the most recently inserted log, or null when the table is
+   * empty. This is the tip the next record chains onto.
+   *
+   * Ordered by rowid rather than created_at: rowid is insertion order, which is
+   * the order the chain was built in. created_at can tie or move backwards when
+   * a caller supplies its own timestamp.
+   */
+  async getLastLogHmac(): Promise<string | null> {
+    this.assertOpen();
+    const row = this.db!
+      .prepare('SELECT data FROM operation_logs ORDER BY rowid DESC LIMIT 1')
+      .get() as { data: string } | undefined;
+    if (!row) return null;
+    try {
+      return (JSON.parse(row.data) as OperationLog).hmac ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * All logs in insertion order, oldest first — the order `verifyChain` needs.
+   * `listOperationLogs` returns newest-first for display and cannot be used.
+   */
+  async listOperationLogsForChain(limit?: number): Promise<OperationLog[]> {
+    this.assertOpen();
+    const sql = limit === undefined
+      ? 'SELECT data FROM operation_logs ORDER BY rowid ASC'
+      : 'SELECT data FROM operation_logs ORDER BY rowid ASC LIMIT ?';
+    const rows = (limit === undefined
+      ? this.db!.prepare(sql).all()
+      : this.db!.prepare(sql).all(limit)) as Array<{ data: string }>;
+    return rows.map(r => deserializeLog(r.data));
+  }
+
   async saveOperationLog(log: OperationLog): Promise<void> {
     this.assertOpen();
     const stmt = this.db!.prepare(`

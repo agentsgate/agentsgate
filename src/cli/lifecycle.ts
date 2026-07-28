@@ -161,6 +161,10 @@ export async function cmdStart(args: string[]): Promise<void> {
     rollbackEngine: rollback,
     telemetry,
     apiKey: config.dashboard?.apiKey,
+    roles: config.dashboard?.roles,
+    // Fall back to the bind address so a non-loopback deployment still answers
+    // to the name it is reached by, without the operator having to restate it.
+    allowedHosts: config.dashboard?.allowedHosts,
     onSessionExpire: (id) => { expiredSessions.add(id); },
     rateLimiter: rateLimiter ?? undefined,
     config,

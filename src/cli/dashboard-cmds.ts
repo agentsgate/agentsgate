@@ -398,17 +398,26 @@ export async function cmdVerifyLogs(args: string[]): Promise<void> {
 
   const store = new StateStore(DB_FILE);
   await store.initialize();
-  const logs = await store.listOperationLogs(limit, 0);
+  // Ascending, because each record is signed against the one before it.
+  // listOperationLogs returns newest-first for display and would not verify.
+  const logs = await store.listOperationLogsForChain();
   await store.close();
 
   if (logs.length === 0) { console.log('No logs found.'); return; }
 
-  const { auditLogs } = await import('../utils/audit-hmac.js');
-  const { valid, invalid } = auditLogs(logs, secret);
+  const { verifyChain } = await import('../utils/audit-hmac.js');
+  const { valid, invalid, brokenAt, intact } = verifyChain(logs, secret);
 
   console.log(`Verified ${logs.length} log(s):`);
   console.log(`  Valid   : ${valid.length}`);
   console.log(`  Invalid : ${invalid.length}`);
+  if (intact) {
+    console.log('  Chain   : intact — no record has been edited or removed');
+  } else {
+    console.error(`  Chain   : BROKEN at record ${brokenAt + 1} of ${logs.length}`);
+    console.error('            A record was edited or deleted here. Records after');
+    console.error('            this point cannot be attested to either way.');
+  }
 
   if (invalid.length > 0) {
     console.error('\nTampered or pre-signing logs:');

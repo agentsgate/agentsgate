@@ -93,6 +93,22 @@ export interface AgentsGateConfig {
      * (prevents API keys from appearing in server logs).
      */
     apiKey?: string;
+    /**
+     * Per-key roles. When set, every `X-API-Key` must appear here or the
+     * request is rejected:
+     *   viewer   — read-only (all GET endpoints)
+     *   approver — viewer, plus approve/reject of pending approvals
+     *   admin    — full access, including rollback and session expiry
+     * An `apiKey` set alongside this is treated as an admin key.
+     */
+    roles?: Record<string, 'viewer' | 'approver' | 'admin'>;
+    /**
+     * Hostnames the dashboard will answer to, checked against the Host header
+     * as DNS rebinding defence. Defaults to localhost, 127.0.0.1, ::1 and
+     * `proxy.host`. Set this when reaching the dashboard through a reverse
+     * proxy or under another name.
+     */
+    allowedHosts?: string[];
   };
   audit?: {
     /**

@@ -35,7 +35,7 @@ export { AgentRateLimiter, ToolRateLimiter } from './utils/rate-limiter.js';
 export type { ToolRateLimitConfig } from './utils/rate-limiter.js';
 export { AgentQuotaManager } from './utils/agent-quota.js';
 export type { AgentQuotaOptions } from './utils/agent-quota.js';
-export { signLog, verifyLog, stampLog, auditLogs } from './utils/audit-hmac.js';
+export { signLog, verifyLog, stampLog, auditLogs, verifyChain, GENESIS_HMAC } from './utils/audit-hmac.js';
 export { SlackNotifier } from './utils/slack-notifier.js';
 export type { SlackNotifierOptions } from './utils/slack-notifier.js';
 export { MCPServerRegistry } from './utils/mcp-server-registry.js';
