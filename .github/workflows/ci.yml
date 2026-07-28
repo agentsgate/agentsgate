@@ -100,11 +100,40 @@ jobs:
       - name: Startup smoke test
         run: npm run smoke:start
 
+  # Single aggregate check, so branch protection has one stable name to require.
+  #
+  # Requiring the matrix jobs directly does not work well: their check names
+  # carry the matrix value (`Quickstart (ubuntu-latest)` and so on), so the
+  # ruleset has to list every combination and be edited whenever the matrix
+  # changes — and a name only becomes selectable after that job has actually
+  # run at least once. Worse, a *skipped* required check never reports, which
+  # leaves a pull request blocked forever.
+  #
+  # `if: always()` makes this run even when an upstream job fails or is
+  # skipped, so it always reports a definite pass or fail.
+  ci:
+    name: CI
+    if: always()
+    needs: [test, coverage, audit, quickstart]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every gate succeeded
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "upstream results: $results"
+          for r in $results; do
+            if [ "$r" != "success" ]; then
+              echo "::error::a required job reported '$r'"
+              exit 1
+            fi
+          done
+          echo "all gates passed"
+
   publish:
     name: Publish to npm
     # Every gate must pass, not just the test matrix — a release should not be
     # able to ship with a known runtime advisory or a coverage regression.
-    needs: [test, quickstart, audit, coverage]
+    needs: [ci]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
 
