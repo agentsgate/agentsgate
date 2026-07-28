@@ -10,7 +10,10 @@ jobs:
   test:
     name: Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
+      # One leg failing should not cancel the others — we want every result.
+      fail-fast: false
       matrix:
         node-version: [20.x, 22.x]
 
@@ -81,7 +84,9 @@ jobs:
     name: Quickstart (${{ matrix.os }})
     needs: test
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
@@ -122,10 +127,18 @@ jobs:
           results="${{ join(needs.*.result, ' ') }}"
           echo "upstream results: $results"
           for r in $results; do
-            if [ "$r" != "success" ]; then
-              echo "::error::a required job reported '$r'"
-              exit 1
-            fi
+            case "$r" in
+              success) ;;
+              cancelled|skipped)
+                # Usually GitHub failing to allocate a runner rather than a
+                # defect — most often the macOS pool. Still a fail: a gate that
+                # did not run has not passed. Re-run the workflow.
+                echo "::error::a required job reported '$r' — it did not run, so nothing is verified. Re-run the workflow."
+                exit 1 ;;
+              *)
+                echo "::error::a required job reported '$r'"
+                exit 1 ;;
+            esac
           done
           echo "all gates passed"
 
