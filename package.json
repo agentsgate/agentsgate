@@ -1,0 +1,87 @@
+{
+  "name": "agentsgate",
+  "version": "0.1.0",
+  "description": "AI Agent I/O Tracking & Rollback System — MCP Proxy Gateway",
+  "type": "module",
+  "license": "MIT",
+  "author": "Hiroji Fukui",
+  "homepage": "https://github.com/agentsgate/agentsgate",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentsgate/agentsgate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/agentsgate/agentsgate/issues"
+  },
+  "keywords": [
+    "mcp",
+    "ai-agent",
+    "security",
+    "rollback",
+    "proxy",
+    "model-context-protocol",
+    "claude",
+    "agentsgate"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "agentsgate": "./dist/cli.js",
+    "database-mcp": "./dist/mcp-servers/database/index.js",
+    "pg-database-mcp": "./dist/mcp-servers/pg-database/index.js",
+    "mysql-database-mcp": "./dist/mcp-servers/mysql-database/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "smoke:start": "node scripts/smoke-startup.mjs",
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "clean": "node -e \"import('node:fs/promises').then(fs => fs.rm('dist', { recursive: true, force: true }))\"",
+    "prepublishOnly": "npm run lint && npm test && npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^12.6.2",
+    "diff": "^5.2.2",
+    "minimatch": "^10.2.5",
+    "mysql2": "^3.20.0",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/server-filesystem": "^2026.1.14",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/diff": "^5.2.3",
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "docx": "^9.6.1",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "@hono/node-server": "^2.0.5",
+    "brace-expansion": "^5.0.8"
+  }
+}

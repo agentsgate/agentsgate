@@ -1,0 +1,80 @@
+name: Bug report
+description: Something behaves differently from what the docs describe
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not report security vulnerabilities here.** Use the process in
+        [SECURITY.md](https://github.com/agentsgate/agentsgate/blob/main/SECURITY.md)
+        so the issue stays private until a fix is available.
+
+        Operation logs contain full tool arguments and results, which routinely
+        include file contents and credentials. Redact anything you paste.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. agentsgate start
+        2. ...
+        3. Observed: ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: AgentsGate version
+      description: "`agentsgate --version`, or the commit SHA if running from source"
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: "`node --version` (AgentsGate requires >= 20)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Output of `agentsgate doctor`, and any relevant output from
+        `AGENTSGATE_DEBUG=1 agentsgate start`. Redact paths, tokens and
+        connection strings.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This is not a security vulnerability (those go through SECURITY.md)
+          required: true
+        - label: I have redacted credentials and private paths from anything pasted above
+          required: true

@@ -1,0 +1,38 @@
+{
+  "_comment": "Copy to ~/.agentsgate/config.json and remove this key. All fields are optional.",
+  "proxy": {
+    "port": 4000,
+    "checkpointThreshold": 0.3
+  },
+  "intervention": {
+    "allowBelow": 0.3,
+    "blockAtOrAbove": 0.7
+  },
+  "dashboard": {
+    "apiKey": "change-me-to-a-random-secret"
+  },
+  "audit": {
+    "signingSecret": "change-me-to-another-random-secret"
+  },
+  "webhook": {
+    "url": "https://your-server.example.com/agentsgate/webhook",
+    "secret": "change-me-to-webhook-signing-secret",
+    "slackUrl": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  },
+  "approvals": {
+    "maxAgeMs": 86400000
+  },
+  "rateLimit": {
+    "enabled": true,
+    "maxOpsPerMinute": 60
+  },
+  "logs": {
+    "retentionDays": 30
+  },
+  "telemetry": {
+    "exportEndpoint": "https://your-telemetry-sink.example.com/ingest",
+    "exportIntervalMs": 300000,
+    "anomalyWebhookUrl": "https://alerts.example.com/agentsgate",
+    "anomalyZScoreThreshold": 3.0
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "_comment": "Copy to ~/.agentsgate/policy.json. Remove _comment keys.",
+  "rules": [
+    {
+      "_comment": "1. Block all filesystem deletes",
+      "name": "block-filesystem-delete",
+      "tool": "filesystem",
+      "params": {
+        "operation": "delete"
+      },
+      "score": 1.0,
+      "action": "block",
+      "reason": "Filesystem delete operations are permanently destructive and not permitted."
+    },
+    {
+      "_comment": "2. Require approval for .env / .pem writes",
+      "name": "require-approval-sensitive-file-write",
+      "tool": "filesystem",
+      "params": {
+        "operation": "write",
+        "pathPattern": ".*\\.(env|pem|key|p12|pfx)$"
+      },
+      "score": 0.9,
+      "action": "require_approval",
+      "reason": "Writing to credential or certificate files requires explicit approval."
+    },
+    {
+      "_comment": "3. Block SQL DROP and TRUNCATE",
+      "name": "block-sql-drop-truncate",
+      "tool": "database",
+      "params": {
+        "queryPattern": "(?i)^\\s*(DROP|TRUNCATE)\\s+"
+      },
+      "score": 1.0,
+      "action": "block",
+      "reason": "DROP and TRUNCATE are irreversible and not permitted via AI agents."
+    },
+    {
+      "_comment": "4. Require approval for SQL DELETE without WHERE",
+      "name": "require-approval-sql-delete-no-where",
+      "tool": "database",
+      "params": {
+        "queryPattern": "(?i)^\\s*DELETE\\s+FROM\\s+\\S+\\s*$"
+      },
+      "score": 0.85,
+      "action": "require_approval",
+      "reason": "Bulk DELETE without a WHERE clause requires explicit approval."
+    },
+    {
+      "_comment": "5. Block git force-push",
+      "name": "block-git-force-push",
+      "tool": "bash",
+      "params": {
+        "commandPattern": "git\\s+push\\s+.*--force|git\\s+push\\s+.*-f\\b"
+      },
+      "score": 0.95,
+      "action": "block",
+      "reason": "Force-push can permanently destroy remote history."
+    },
+    {
+      "_comment": "6. Allow read-only filesystem access",
+      "name": "allow-filesystem-read",
+      "tool": "filesystem",
+      "params": {
+        "operation": "read"
+      },
+      "score": 0.0,
+      "action": "allow",
+      "reason": "Read-only filesystem access is safe and always permitted."
+    },
+    {
+      "_comment": "7. Block specific agent by ID pattern (denylist)",
+      "name": "block-untrusted-agent",
+      "agentPattern": "^untrusted-.*",
+      "score": 1.0,
+      "action": "block",
+      "reason": "Agents matching the untrusted- prefix are not permitted to perform any operations."
+    },
+    {
+      "_comment": "8. Trust a specific agent (allowlist, score multiplier 0.1)",
+      "name": "trust-internal-ci-agent",
+      "agentPattern": "^internal-ci-agent$",
+      "scoreMultiplier": 0.1,
+      "action": "allow",
+      "reason": "The internal CI agent is fully trusted; its risk scores are reduced by 90%."
+    },
+    {
+      "_comment": "9. Rate-sensitive data read (users / passwords tables)",
+      "name": "flag-sensitive-table-read",
+      "tool": "database",
+      "params": {
+        "queryPattern": "(?i)(FROM|JOIN)\\s+(users|passwords|credentials|secrets)"
+      },
+      "score": 0.6,
+      "action": "log",
+      "reason": "Queries touching user credential tables are logged for audit purposes."
+    },
+    {
+      "_comment": "10. Block bulk-delete Slack messages",
+      "name": "block-slack-bulk-delete",
+      "tool": "slack",
+      "params": {
+        "operation": "delete_messages",
+        "countThreshold": 5
+      },
+      "score": 0.9,
+      "action": "block",
+      "reason": "Bulk deletion of Slack messages is not permitted."
+    },
+    {
+      "_comment": "11. Require approval for any email send",
+      "name": "require-approval-email-send",
+      "tool": "email",
+      "params": {
+        "operation": "send"
+      },
+      "score": 0.7,
+      "action": "require_approval",
+      "reason": "Sending emails on behalf of the user requires explicit approval."
+    },
+    {
+      "_comment": "12. Block AWS credential access",
+      "name": "block-aws-credential-access",
+      "tool": "filesystem",
+      "params": {
+        "pathPattern": "(~|\\/root|\\/home\\/[^/]+)\\/.aws\\/(credentials|config)$"
+      },
+      "score": 1.0,
+      "action": "block",
+      "reason": "Access to AWS credential files is strictly forbidden."
+    }
+  ],
+  "thresholds": {
+    "allowBelow": 0.3,
+    "requireApprovalBelow": 0.7,
+    "blockAtOrAbove": 0.7
+  }
+}

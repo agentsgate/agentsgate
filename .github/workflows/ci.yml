@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - run: npm ci
+
+      # Thresholds in vitest.config.ts are a regression ratchet, not the target.
+      - name: Test with coverage
+        run: npm run test:coverage
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - run: npm ci
+
+      # Runtime dependencies are what reaches users, and are held at zero
+      # advisories. This step fails the job if that regresses.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev
+
+      # Build and test tooling never ships. Reported for visibility only —
+      # see the dependency policy in SECURITY.md.
+      - name: Audit all dependencies (informational)
+        run: npm audit || true
+
+  quickstart:
+    name: Quickstart (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - name: Bootstrap
+        run: npm run bootstrap
+
+      - name: Startup smoke test
+        run: npm run smoke:start
+
+  publish:
+    name: Publish to npm
+    # Every gate must pass, not just the test matrix — a release should not be
+    # able to ship with a known runtime advisory or a coverage regression.
+    needs: [test, quickstart, audit, coverage]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
+
+    permissions:
+      contents: read
+      id-token: write        # required for npm provenance
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Catches a release: commit that forgot to bump package.json, which would
+      # otherwise fail at the registry after every gate has already run.
+      - name: Check the version is not already published
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "agentsgate@$VERSION" version >/dev/null 2>&1; then
+            echo "agentsgate@$VERSION is already on the registry — bump the version first."
+            exit 1
+          fi
+          echo "Publishing agentsgate@$VERSION"
+
+      - name: Build
+        run: npm run build
+
+      # --provenance publishes a signed attestation linking the tarball to this
+      # workflow run and commit, so consumers can verify what they install was
+      # built from this repository.
+      - name: Publish
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

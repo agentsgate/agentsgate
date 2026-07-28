@@ -1,0 +1,43 @@
+# Dependencies (installed fresh inside Docker)
+node_modules/
+
+# Version control
+.git/
+.gitignore
+
+# Built output (rebuilt inside Docker)
+dist/
+
+# Tests and coverage
+tests/
+*.test.ts
+*.spec.ts
+coverage/
+.nyc_output/
+
+# Claude / AI tooling
+.claude/
+
+# Project management artifacts
+tasks/
+agents/
+
+# Local environment and secrets
+.env
+.env.*
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript source maps (not needed at runtime)
+*.map
+
+# CI/CD
+.github/

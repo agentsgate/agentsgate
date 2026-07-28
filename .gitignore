@@ -1,0 +1,57 @@
+node_modules/
+dist/
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/*
+!logs/.gitkeep
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Shadow git repository (legacy in-project location)
+.agentsgate-shadow/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage output
+coverage/
+
+# Build artifacts
+*.js.map
+tsconfig.tsbuildinfo
+
+# Local AI-orchestration workspace. AgentsGate is developed by dispatching
+# Claude Code subagents; these hold the prompts, per-task specs and raw agent
+# output that drive that loop. They are working state, not part of the shipped
+# project, so they stay on the maintainer's disk and out of the repository.
+CLAUDE.md
+tasks/
+agents/
+docs/oss-release-action-items-ja.md
+
+# Claude Code per-machine settings (permissions, enabled MCP servers)
+.claude/settings.local.json
+
+# Office lock files
+~$*
+
+# Intermediate docx text dump
+docs/_docx_dump.txt

@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a capability or change
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: |
+        What are you trying to do that AgentsGate makes hard or impossible?
+        Describe the situation rather than a proposed solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: If you already have a shape in mind, sketch it here.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Proxy / interception
+        - Risk scoring or policy rules
+        - Checkpoints and rollback
+        - Dashboard
+        - CLI
+        - MCP servers (filesystem, SQLite, PostgreSQL, MySQL)
+        - Telemetry
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have tried
+      description: Existing commands, policy rules, or workarounds you have already ruled out.
