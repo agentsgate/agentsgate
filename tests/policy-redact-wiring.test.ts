@@ -16,13 +16,6 @@ import { StateStore } from '../src/modules/m2-store/index.js';
 import { createPipeline } from '../src/modules/m1-proxy/index.js';
 import type { MCPOperation, RiskAssessment, ProxyDecision } from '../src/types/interfaces.js';
 
-// Port range: 51950+
-const PORT_BASE = 51950;
-let portOffset = 0;
-function nextPort(): number {
-  return PORT_BASE + portOffset++;
-}
-
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function makeOp(overrides: Partial<MCPOperation> = {}): MCPOperation {

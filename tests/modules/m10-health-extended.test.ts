@@ -9,8 +9,9 @@ import { StateStore } from '../../src/modules/m2-store/index.js';
 import { DashboardAPI } from '../../src/modules/m10-dashboard/index.js';
 import { AgentCircuitBreaker } from '../../src/utils/circuit-breaker.js';
 
-const PORT_BASE = 51600;
-let portOffset = 0;
+// Ports come from start(0). A hand-picked base sits inside the OS ephemeral
+// range (49152-65535), so a concurrent listen(0) can be handed the same number
+// and this suite loses the race with EADDRINUSE.
 
 async function startDash(options?: { circuitBreaker?: AgentCircuitBreaker }): Promise<{
   store: StateStore;
@@ -19,9 +20,9 @@ async function startDash(options?: { circuitBreaker?: AgentCircuitBreaker }): Pr
 }> {
   const store = new StateStore(':memory:');
   await store.initialize();
-  const port = PORT_BASE + portOffset++;
   const dashboard = new DashboardAPI(store, options ?? {});
-  await dashboard.start(port);
+  await dashboard.start(0);
+  const port = dashboard.getPort();
   return { store, dashboard, port };
 }
 

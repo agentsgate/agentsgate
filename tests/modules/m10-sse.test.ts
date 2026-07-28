@@ -8,13 +8,18 @@ import http from 'node:http';
 
 let store: StateStore;
 let dashboard: DashboardAPI;
-const PORT = 14210;
+// Port comes from start(0). This suite holds long-lived SSE connections, so a
+// fixed port is doubly wrong: it can collide with another suite, and a pooled
+// or half-closed connection from the previous test can still be attached to
+// the previous server instance bound to that same number.
+let PORT = 0;
 
 beforeEach(async () => {
   store = new StateStore(':memory:');
   await store.initialize();
   dashboard = new DashboardAPI(store);
-  await dashboard.start(PORT);
+  await dashboard.start(0);
+  PORT = dashboard.getPort();
 });
 
 afterEach(async () => {

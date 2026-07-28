@@ -9,8 +9,9 @@ import fs from 'node:fs/promises';
 import { StateStore } from '../../src/modules/m2-store/index.js';
 import { DashboardAPI } from '../../src/modules/m10-dashboard/index.js';
 
-const PORT_BASE = 51300;
-let portOffset = 0;
+// Ports come from start(0). A hand-picked base sits inside the OS ephemeral
+// range (49152-65535), so a concurrent listen(0) can be handed the same number
+// and this suite loses the race with EADDRINUSE.
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -25,9 +26,9 @@ async function setup(): Promise<SetupResult> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'as-ps-'));
   const store = new StateStore(path.join(tmpDir, 'test.db'));
   await store.initialize();
-  const port = PORT_BASE + portOffset++;
   const dash = new DashboardAPI(store, {});
-  await dash.start(port);
+  await dash.start(0);
+  const port = dash.getPort();
   return { dash, port, store, tmpDir };
 }
 

@@ -15,8 +15,9 @@ import { DashboardAPI } from '../../src/modules/m10-dashboard/index.js';
 import type { OperationLog, MCPOperation, ProxyDecision } from '../../src/types/interfaces.js';
 import type { AgentsGatePolicy } from '../../src/policy.js';
 
-const PORT_BASE = 52100;
-let portOffset = 0;
+// Ports come from start(0). A hand-picked base sits inside the OS ephemeral
+// range (49152-65535), so a concurrent listen(0) can be handed the same number
+// and this suite loses the race with EADDRINUSE.
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,9 +32,9 @@ async function setup(policy?: AgentsGatePolicy): Promise<SetupResult> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'as-filt-'));
   const store = new StateStore(path.join(tmpDir, 'test.db'));
   await store.initialize();
-  const port = PORT_BASE + portOffset++;
   const dash = new DashboardAPI(store, policy ? { policy } : {});
-  await dash.start(port);
+  await dash.start(0);
+  const port = dash.getPort();
   return { dash, port, store, tmpDir };
 }
 
