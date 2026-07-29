@@ -31,6 +31,14 @@ desktop.ini
 *.swp
 *.swo
 
+# docs/ ships Markdown and PDF only. The .docx/.xlsx/.pptx sources those are
+# generated from, and any screenshots, stay on the maintainer's disk — they are
+# large, diff as binary blobs, and are not what a reader of the repository needs.
+docs/**
+!docs/**/
+!docs/**/*.md
+!docs/**/*.pdf
+
 # Coverage output
 coverage/
 
