@@ -63,7 +63,7 @@ describe('AGENTSGATE_VERSION', () => {
   it('is what the CLI banner, /health and OTLP all report', async () => {
     // The three places that previously disagreed now read the same constant.
     const read = (p: string): Promise<string> => fs.readFile(path.join(repoRoot, p), 'utf8');
-    expect(await read('src/cli.ts')).toContain('AGENTSGATE_VERSION');
+    expect(await read('src/cli/help.ts')).toContain('AGENTSGATE_VERSION');
     expect(await read('src/cli/lifecycle.ts')).toContain('AGENTSGATE_VERSION');
     expect(await read('src/modules/m10-dashboard/index.ts')).toContain('version: AGENTSGATE_VERSION');
     expect(await read('src/modules/m13-telemetry/index.ts')).toContain('AGENTSGATE_VERSION');

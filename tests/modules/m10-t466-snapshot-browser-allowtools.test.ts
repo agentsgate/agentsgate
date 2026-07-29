@@ -281,6 +281,7 @@ describe('UI1 — DashboardAPI snapshot browser', () => {
 // ── C5 — inject-sqlite alias ──────────────────────────────────────────────────
 
 const CLI_SOURCE_PATH = path.resolve(process.cwd(), 'src/cli.ts');
+const HELP_SOURCE_PATH = path.resolve(process.cwd(), 'src/cli/help.ts');
 
 describe('C5 — inject-sqlite CLI alias', () => {
   it('inject-sqlite case exists in cli.ts switch statement', async () => {
@@ -288,9 +289,10 @@ describe('C5 — inject-sqlite CLI alias', () => {
     expect(cliSource).toContain("case 'inject-sqlite':");
   });
 
-  it('inject-sqlite help text appears in cli.ts', async () => {
-    const cliSource = await fs.readFile(CLI_SOURCE_PATH, 'utf-8');
-    expect(cliSource).toContain('inject-sqlite');
-    expect(cliSource).toContain('alias for inject-db');
+  it('inject-sqlite help text appears in the usage block', async () => {
+    // The usage block lives in src/cli/help.ts so `--version` can print on its own.
+    const helpSource = await fs.readFile(HELP_SOURCE_PATH, 'utf-8');
+    expect(helpSource).toContain('inject-sqlite');
+    expect(helpSource).toContain('alias for inject-db');
   });
 });

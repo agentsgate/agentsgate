@@ -55,8 +55,9 @@ describe('inject-mysql CLI routing (source inspection)', () => {
   });
 
   it('1.4 help text includes inject-mysql remove subcommand', async () => {
-    const cliPath = path.resolve('src/cli.ts');
-    const source = await fs.readFile(cliPath, 'utf8');
+    // The usage block lives in src/cli/help.ts so `--version` can print on its own.
+    const helpPath = path.resolve('src/cli/help.ts');
+    const source = await fs.readFile(helpPath, 'utf8');
     expect(source).toContain('inject-mysql remove');
   });
 
