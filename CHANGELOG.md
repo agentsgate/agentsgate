@@ -2,6 +2,19 @@
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- `agentsgate --version` printed the banner followed by the entire usage block
+  and exited 1, because it fell through to the `default:` arm of the dispatch
+  switch. It now prints `AgentsGate v<version>` on its own and exits 0. `-v` and
+  `version` do the same; `--help`, `-h` and `help` print the usage and exit 0,
+  where before they too exited 1. An unknown command still prints the usage and
+  exits 1.
+
+---
+
 ## [0.1.0] — 2026-07-28
 
 First release published to npm.
