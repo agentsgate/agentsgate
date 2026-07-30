@@ -228,9 +228,11 @@ describe('M7 custom intervention thresholds', () => {
       interventionController: new InterventionController({ allowBelow: 0.15, blockAtOrAbove: 0.5 }),
     });
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: pipeline.evaluateRisk! });
+    // require_approval is held now, so an approver is needed for the call to
+    // complete; the assertion under test is which decision the threshold made.
+    await h.start({ evaluateRisk: pipeline.evaluateRisk!, awaitApproval: async () => 'approved' });
 
-    // echo → DEFAULT=0.2; 0.15 ≤ 0.2 < 0.5 → require_approval; server still receives call
+    // echo → DEFAULT=0.2; 0.15 ≤ 0.2 < 0.5 → require_approval; forwarded once approved
     const result = await h.callTool('echo', { message: 'threshold-test' });
     expect((result as { content: Array<{ text: string }> }).content[0]?.text).toBe('threshold-test');
     expect(h.lastIntercept?.decision.action).toBe('require_approval');

@@ -31,6 +31,9 @@ const blockAll = async (): Promise<ProxyDecision> => ({
   action: 'block', riskScore: 1.0, reasons: ['test-block-all'],
 });
 
+/** Stands in for a human saying yes; without one the proxy holds the call. */
+const approve = async (): Promise<'approved'> => 'approved';
+
 const requireApprovalAll = async (): Promise<ProxyDecision> => ({
   action: 'require_approval', riskScore: 0.75, reasons: ['test-require-approval'],
 });
@@ -230,15 +233,27 @@ describe('MCPStdioProxy — require_approval decision', () => {
 
   it('forwards require_approval call to downstream server and relays response', async () => {
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: requireApprovalAll });
+    await h.start({ evaluateRisk: requireApprovalAll, awaitApproval: approve });
     const result = await h.callTool('echo', { message: 'approve-me' });
-    // require_approval is treated as a pass-through at the transport level.
+    // Held until the approver answers, then forwarded and relayed as normal.
     expect((result as { content: Array<{ text: string }> }).content[0]?.text).toBe('approve-me');
+  });
+
+  it('refuses the call when no approver is configured', async () => {
+    h = new McpClientHarness();
+    await h.start({ evaluateRisk: requireApprovalAll });
+    await expect(h.callTool('echo', { message: 'never-runs' })).rejects.toThrow(/approval/i);
+  });
+
+  it('refuses the call when the approver denies it', async () => {
+    h = new McpClientHarness();
+    await h.start({ evaluateRisk: requireApprovalAll, awaitApproval: async () => 'denied' });
+    await expect(h.callTool('echo', { message: 'never-runs' })).rejects.toThrow(/denied/i);
   });
 
   it('records require_approval in intercepts with correct action and risk score', async () => {
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: requireApprovalAll });
+    await h.start({ evaluateRisk: requireApprovalAll, awaitApproval: approve });
     await h.callTool('echo', { message: 'x' });
     expect(h.lastIntercept?.decision.action).toBe('require_approval');
     expect(h.lastIntercept?.decision.riskScore).toBe(0.75);
@@ -447,7 +462,7 @@ describe('MCPStdioProxy — require_approval _agentsgate injection', () => {
 
   it('when evaluateRisk returns require_approval with riskScore > 0, _agentsgate.action === require_approval', async () => {
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: requireApprovalWithScore(0.55) });
+    await h.start({ evaluateRisk: requireApprovalWithScore(0.55), awaitApproval: approve });
     const result = await h.callTool('inspect_request', {});
     const params = JSON.parse(
       (result as { content: Array<{ text: string }> }).content[0]!.text,
@@ -459,7 +474,7 @@ describe('MCPStdioProxy — require_approval _agentsgate injection', () => {
 
   it('_agentsgate.riskScore matches the value returned by evaluateRisk', async () => {
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: requireApprovalWithScore(0.55) });
+    await h.start({ evaluateRisk: requireApprovalWithScore(0.55), awaitApproval: approve });
     const result = await h.callTool('inspect_request', {});
     const params = JSON.parse(
       (result as { content: Array<{ text: string }> }).content[0]!.text,
@@ -470,7 +485,7 @@ describe('MCPStdioProxy — require_approval _agentsgate injection', () => {
 
   it('when evaluateRisk returns require_approval with riskScore === 0, _agentsgate is NOT injected', async () => {
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: requireApprovalWithScore(0) });
+    await h.start({ evaluateRisk: requireApprovalWithScore(0), awaitApproval: approve });
     const result = await h.callTool('inspect_request', {});
     const params = JSON.parse(
       (result as { content: Array<{ text: string }> }).content[0]!.text,
@@ -618,7 +633,7 @@ describe('MCPStdioProxy — decision reasons array', () => {
 
   it('requireApprovalAll evaluator: lastIntercept.decision.reasons contains "test-require-approval"', async () => {
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: requireApprovalAll });
+    await h.start({ evaluateRisk: requireApprovalAll, awaitApproval: approve });
     await h.callTool('echo', { message: 'x' });
     expect(h.lastIntercept?.decision.reasons).toContain('test-require-approval');
   });
