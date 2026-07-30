@@ -69,9 +69,11 @@ describe('Policy score override rules', () => {
     };
     const pipeline = makePipelineWithPolicy(policy);
     h = new McpClientHarness();
-    await h.start({ evaluateRisk: pipeline.evaluateRisk! });
+    // require_approval is held now; the assertion under test is the score the
+    // policy override produced, so approve and let the call through.
+    await h.start({ evaluateRisk: pipeline.evaluateRisk!, awaitApproval: async () => 'approved' });
 
-    // score 0.5 → 0.3 ≤ 0.5 < 0.7 → require_approval; server still called
+    // score 0.5 → 0.3 ≤ 0.5 < 0.7 → require_approval; forwarded once approved
     const result = await h.callTool('echo', { message: 'elevated' });
     expect((result as { content: Array<{ text: string }> }).content[0]?.text).toBe('elevated');
     expect(h.lastIntercept?.decision.action).toBe('require_approval');

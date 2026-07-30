@@ -61,6 +61,37 @@
 
 ### Security
 
+- **`require_approval` no longer executes in stdio proxy mode.** The stdio proxy
+  short-circuited only on `block`; a `require_approval` verdict took the same
+  path as `allow` and was forwarded to the MCP server, with the risk score
+  annotated onto the params. The source called this "approval can be handled
+  async" — but an approval that arrives after the tool has run is a
+  notification, and `agentsgate inject` wires Claude Desktop through exactly
+  this path, so with the default thresholds every operation scoring 0.3–0.7 ran
+  unchecked. The README described the same band as "pause, create checkpoint,
+  wait for user".
+
+  The request is now held: the child is not called until an approver answers.
+  `MCPStdioProxy` takes an `awaitApproval` resolver, and **without one the
+  operation is refused**, because the proxy sits synchronously in the request
+  path and there is no safe way to ask afterwards. A resolver that throws or
+  never answers also leaves the operation unrun.
+
+  Nine existing tests asserted the old behaviour — that `require_approval` was
+  forwarded — and have been updated to supply an approver where they were
+  really testing what happens to an approved call.
+
+  Note the related limitation this exposed: `ApprovalQueue.resolve()` only
+  removes the item and records the outcome for L2 scoring. Nothing anywhere
+  waits on it, so approve/deny has always been after-the-fact review rather
+  than a gate. stdio is the one place that can hold a call, and now does. The
+  interactive path — queueing from stdio and having `agentsgate approve` release
+  it — is not built yet, so today a `require_approval` operation under
+  `agentsgate proxy` is refused rather than queued. Lower
+  `intervention.blockAtOrAbove`, or write a policy rule, to choose deliberately
+  between allow and block until then.
+
+
 - **A policy pattern written `/…/i` never matched.** Match values were treated
   as a regular expression only when they both started and ended with a slash, so
   any pattern carrying flags — the form used in the README, in the policy guide,

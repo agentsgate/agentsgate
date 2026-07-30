@@ -117,8 +117,10 @@ describe('MCPStdioProxy', () => {
     expect(response.error.data.riskScore).toBeGreaterThanOrEqual(0.7);
   });
 
-  it('injects _agentsgate metadata for require_approval tool calls', async () => {
-    // Use a custom evaluateRisk stub that returns require_approval to test proxy injection logic
+  it('injects _agentsgate metadata for an approved require_approval tool call', async () => {
+    // The call is held until the approver answers; this covers what is
+    // forwarded afterwards. The held-and-refused paths are in
+    // tests/m1-stdio-approval-gate.test.ts.
     const clientOutput = new LineCollector();
     const childInput   = new LineCollector();
     const proxy = new MCPStdioProxy({
@@ -132,6 +134,7 @@ describe('MCPStdioProxy', () => {
       }),
       agentId: 'test-agent',
       sessionId: 'test-session',
+      awaitApproval: async () => 'approved' as const,
       stdout: clientOutput,
       stderr: new Writable({ write(_c, _e, cb) { cb(); } }),
       stdin: new PassThrough(),

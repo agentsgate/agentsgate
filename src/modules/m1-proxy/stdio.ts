@@ -19,8 +19,16 @@
  *
  * Blocking behaviour:
  *   allow            → forwarded, response relayed as-is
- *   require_approval → forwarded (approval can be handled async); riskScore added to response meta
+ *   require_approval → held. `awaitApproval` decides; approved forwards, denied
+ *                      returns an error, and with no resolver configured the
+ *                      request is refused. The child is not called until then.
  *   block            → error response returned immediately, child NOT called
+ *
+ * `require_approval` used to be forwarded like `allow`, on the reasoning that
+ * approval could be handled asynchronously. An approval that arrives after the
+ * tool has run is a notification, not a gate — and this is the path
+ * `agentsgate inject` configures, so with the default thresholds every
+ * operation scoring 0.3–0.7 executed unchecked.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -59,6 +67,16 @@ export interface StdioProxyOptions {
   sessionId?: string;
   /** Called for each intercepted operation and its decision — useful for logging */
   onIntercept?: (op: MCPOperation, decision: ProxyDecision) => void;
+  /**
+   * Decides a `require_approval` operation. The request is held — the child is
+   * not called — until this resolves.
+   *
+   * Omit it and such operations are refused: the proxy sits synchronously in
+   * the request path, so "forward and ask later" would mean the side effect has
+   * already happened by the time anyone is asked. Anything that throws, or that
+   * never answers, must leave the operation unrun.
+   */
+  awaitApproval?: (op: MCPOperation, decision: ProxyDecision) => Promise<'approved' | 'denied'>;
   /**
    * Called when the child MCP server sends a progress / partial-result
    * notification that is associated with a tracked `tools/call` request.
@@ -111,7 +129,11 @@ interface PendingCall {
  */
 export class MCPStdioProxy {
   private child: ChildProcess | null = null;
-  private readonly options: Required<StdioProxyOptions>;
+  // `awaitApproval` stays optional after normalisation: its absence is
+  // meaningful — it is what makes the proxy refuse a require_approval
+  // operation rather than silently letting it through.
+  private readonly options: Required<Omit<StdioProxyOptions, 'awaitApproval'>>
+    & Pick<StdioProxyOptions, 'awaitApproval'>;
   private readonly resolvedToolName: string;
   /** In-flight tools/call requests keyed by their JSON-RPC id (stringified). */
   private readonly pendingCalls = new Map<string, PendingCall>();
@@ -169,6 +191,24 @@ export class MCPStdioProxy {
   }
 
   /** Stop the child process. */
+  /**
+   * Ask the configured resolver, failing closed on every path that is not an
+   * explicit approval: no resolver, a throw, a rejected promise.
+   */
+  private async resolveApproval(
+    operation: MCPOperation,
+    decision: ProxyDecision
+  ): Promise<'approved' | 'denied' | 'unavailable'> {
+    const gate = this.options.awaitApproval;
+    if (!gate) return 'unavailable';
+    try {
+      return await gate(operation, decision);
+    } catch (err) {
+      this.options.stderr.write(`[agentsgate] approval could not be obtained: ${(err as Error).message}\n`);
+      return 'unavailable';
+    }
+  }
+
   stop(): void {
     this.child?.kill();
   }
@@ -279,8 +319,26 @@ export class MCPStdioProxy {
       return;
     }
 
-    // allow or require_approval — forward to child with riskScore injected into params
-    // so downstream tooling can observe the score if needed
+    if (decision.action === 'require_approval') {
+      const verdict = await this.resolveApproval(operation, decision);
+      if (verdict !== 'approved') {
+        this.writeToClient(JSON.stringify({
+          jsonrpc: '2.0',
+          id: msg.id,
+          error: {
+            code: -32600,
+            message: verdict === 'denied'
+              ? `AgentsGate: approval denied — ${decision.reasons[0] ?? 'operation requires approval'}`
+              : `AgentsGate: operation requires approval and no approver is available — ${decision.reasons[0] ?? ''}`.trim(),
+            data: { riskScore: decision.riskScore, reasons: decision.reasons, verdict },
+          },
+        } satisfies JsonRpcResponse));
+        return;
+      }
+    }
+
+    // allow, or an approved require_approval — forward to child with riskScore
+    // injected into params so downstream tooling can observe the score if needed
     if (decision.riskScore > 0) {
       msg = {
         ...msg,
