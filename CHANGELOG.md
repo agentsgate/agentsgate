@@ -2,6 +2,28 @@
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Releases are now triggered by a tag**, not by a commit message starting
+  `release:`. Merging a version bump publishes nothing; pushing `v<version>`
+  does. The old trigger read the head commit message, which stopped being
+  reliable once `main` required pull requests — whether that message reaches the
+  tip depends on the merge method, so a merge commit skipped the publish after
+  every gate had passed. The publish step now also refuses a tag that disagrees
+  with `package.json`.
+- **Publishing authenticates over OIDC** via npm trusted publishing, so no npm
+  token is stored in the repository. Nothing to rotate or leak, and the package
+  can keep npm's strictest publishing-access setting.
+- **`npm publish` runs with `--ignore-scripts` in CI.** `prepublishOnly` re-ran
+  lint, all 7,258 tests and the build inside the publish step, after the same
+  work had already passed across seven CI legs — duplicated effort whose only
+  effect was another way for a release to fail at the last step. It still guards
+  a manual publish.
+
+---
+
 ## [0.1.1] — 2026-07-29
 
 ### Fixed

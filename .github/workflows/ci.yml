@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']            # a tag is what releases; see the publish job
   pull_request:
     branches: [main]
 
@@ -148,11 +149,15 @@ jobs:
     # able to ship with a known runtime advisory or a coverage regression.
     needs: [ci]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:')
+    # A tag is the release trigger. This used to key off the head commit message
+    # (`release:`), which broke once main required pull requests: whether that
+    # message survives to the tip depends on the merge method chosen in the UI —
+    # a merge commit silently skipped the publish after every gate had passed.
+    if: startsWith(github.ref, 'refs/tags/v')
 
     permissions:
       contents: read
-      id-token: write        # required for npm provenance
+      id-token: write        # OIDC, for both trusted publishing and provenance
 
     steps:
       - uses: actions/checkout@v5
@@ -164,14 +169,26 @@ jobs:
           registry-url: https://registry.npmjs.org/
           cache: npm
 
+      # Node 20 ships npm 10, which has no OIDC support. Trusted publishing
+      # needs 11.5.1 or later.
+      - name: Update npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
-      # Catches a release: commit that forgot to bump package.json, which would
-      # otherwise fail at the registry after every gate has already run.
-      - name: Check the version is not already published
+      # Both halves matter. A tag that disagrees with package.json would publish
+      # the wrong number under the right tag; a version already on the registry
+      # would fail at the very last step, after every gate has already run.
+      - name: Check the tag matches package.json and is unpublished
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          TAG=${GITHUB_REF#refs/tags/}
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "Tag $TAG does not match package.json version $VERSION."
+            echo "Tag the release as v$VERSION, or bump package.json to ${TAG#v}."
+            exit 1
+          fi
           if npm view "agentsgate@$VERSION" version >/dev/null 2>&1; then
             echo "agentsgate@$VERSION is already on the registry — bump the version first."
             exit 1
@@ -181,10 +198,17 @@ jobs:
       - name: Build
         run: npm run build
 
-      # --provenance publishes a signed attestation linking the tarball to this
-      # workflow run and commit, so consumers can verify what they install was
-      # built from this repository.
+      # No NODE_AUTH_TOKEN: the package's trusted publisher is this workflow, so
+      # npm authenticates over OIDC. That removes a long-lived secret from the
+      # repository, removes the 90-day granular-token expiry, and lets the
+      # package keep npm's strictest publishing-access setting.
+      #
+      # --ignore-scripts skips prepublishOnly, which re-runs lint, the full test
+      # suite and the build. This job only starts once `ci` has passed all of
+      # that across seven legs; repeating it here only adds a way for a release
+      # to fail at the last step. prepublishOnly still guards a manual publish.
+      #
+      # --provenance signs an attestation tying the tarball to this run and
+      # commit, so consumers can verify what they install was built from here.
       - name: Publish
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance --ignore-scripts

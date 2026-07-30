@@ -135,14 +135,30 @@ procedure is:
 2. Move the `[Unreleased]` CHANGELOG entry under the new version with today's
    date, and open a fresh `[Unreleased]`.
 3. Update the supported-versions table in `SECURITY.md`.
-4. Merge to `main` with a commit message starting `release:` — for example
-   `release: 0.2.0`.
+4. Merge the bump to `main` through a pull request, as with any other change.
+5. Tag the merge commit `v<version>` and push the tag:
 
-CI then runs the full matrix, the quickstart smoke test on three operating
-systems, the dependency audit and the coverage gate. Only if all of them pass
-does it publish, with `--provenance` so the tarball can be traced back to the
-commit and workflow run that produced it. A `release:` commit whose version is
-already on the registry fails early rather than at the publish step.
+   ```bash
+   git tag v0.2.0 && git push origin v0.2.0
+   ```
+
+**The tag is what publishes.** Merging a version bump does nothing on its own.
+This used to key off a commit message starting `release:`, which stopped being
+reliable once `main` required pull requests — whether that message reaches the
+tip of `main` depends on the merge method, so choosing "Create a merge commit"
+skipped the publish after every gate had already passed. A tag has no such
+ambiguity.
+
+Pushing the tag runs the full matrix, the quickstart smoke test on three
+operating systems, the dependency audit and the coverage gate. Only if all of
+them pass does it publish. The publish step refuses a tag that disagrees with
+`package.json`, and a version already on the registry, before it reaches npm.
+
+Authentication is npm **trusted publishing** over OIDC — the package names this
+workflow as its publisher, so there is no npm token in the repository. Nothing
+to rotate, nothing to leak, and the package keeps npm's strictest
+publishing-access setting. `--provenance` signs an attestation tying the tarball
+to the run and commit that produced it.
 
 Versions before 0.1.0 in the CHANGELOG are internal development milestones that
 were never published; see the note in that file.
