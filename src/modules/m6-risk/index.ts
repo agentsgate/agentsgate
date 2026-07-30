@@ -91,6 +91,87 @@ function sqlTargetsSensitiveTable(op: MCPOperation): boolean {
   return SENSITIVE.test(sql);
 }
 
+/**
+ * Split a projection list on commas that sit outside brackets and quotes.
+ * `count(DISTINCT a), sum(b)` is two items; `count(a, b)` is one.
+ */
+function splitProjection(list: string): string[] {
+  const items: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let start = 0;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i]!;
+    if (quote) {
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "'" || c === '"') { quote = c; continue; }
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === ',' && depth === 0) { items.push(list.slice(start, i)); start = i + 1; }
+  }
+  items.push(list.slice(start));
+  return items.map(t => t.trim()).filter(Boolean);
+}
+
+/** The projection list of a SELECT — everything between SELECT and its own FROM. */
+function projectionOf(sql: string): string | null {
+  if (!sql.startsWith('SELECT')) return null;
+  const body = sql.slice('SELECT'.length);
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i]!;
+    if (quote) {
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "'" || c === '"') { quote = c; continue; }
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (depth === 0 && body.startsWith('FROM', i) && /\s/.test(body[i - 1] ?? ' ')) {
+      return body.slice(0, i);
+    }
+  }
+  return body;   // `SELECT count(*)` with no FROM
+}
+
+/**
+ * Returns true when the SELECT can only hand back row counts.
+ *
+ * `SELECT count(*) FROM users` reveals one number and no column values, so it
+ * is not exfiltration however sensitive the table is. This is an allowlist of
+ * exactly one function, because most things that look like aggregates return
+ * the data: `max(password)` is the largest password verbatim, `group_concat`
+ * and `string_agg` return every row in one string, `mode() WITHIN GROUP` the
+ * most common value. `sum` and `avg` are excluded too — narrowed to a single
+ * row by a WHERE clause they report that row's value exactly.
+ *
+ * GROUP BY disqualifies: one row per group still enumerates the grouping
+ * column's cardinality. So does a set operator, which can append a second,
+ * unrelated SELECT.
+ *
+ * A WHERE clause is allowed, which leaves a blind-oracle residue: repeated
+ * counts filtered on a guess narrow a value down. That takes many queries
+ * against one table, which is what rate limiting and the operation log are for.
+ */
+function sqlIsCountOnly(op: MCPOperation): boolean {
+  const sql = getSql(op);
+  if (/\b(UNION|INTERSECT|EXCEPT)\b/.test(sql)) return false;
+  if (/\bGROUP\s+BY\b|\bHAVING\b/.test(sql)) return false;
+
+  const projection = projectionOf(sql);
+  if (projection === null) return false;
+
+  const items = splitProjection(projection);
+  if (items.length === 0) return false;
+
+  // Every item must be a COUNT call, optionally aliased. Anything else — a bare
+  // column, a subquery, a different function — means values can come back.
+  return items.every(item => /^COUNT\s*\((?:[^()]*)\)(?:\s+(?:AS\s+)?[A-Z0-9_"]+)?$/.test(item));
+}
+
 /** Returns true if SQL params contain a semicolon (multi-statement injection risk). */
 function sqlHasSemicolon(op: MCPOperation): boolean {
   const sql = getSql(op);
@@ -333,7 +414,8 @@ const L1_RULES: StaticRule[] = [
     matches: op =>
       isDbTool(op.tool) &&
       op.method === 'query' &&
-      sqlTargetsSensitiveTable(op),
+      sqlTargetsSensitiveTable(op) &&
+      !sqlIsCountOnly(op),
   },
   {
     id: 'L1_DB_BATCH_DESTROY',

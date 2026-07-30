@@ -28,6 +28,19 @@
 
 ### Fixed
 
+- **Counting rows in a sensitive table no longer counts as exfiltration.**
+  `L1_DB_EXFIL` fired on any SELECT naming `users`, `passwords`, `tokens` and
+  the like, so `SELECT count(*) FROM users` — one number, no column values —
+  scored 0.60 and waited for approval. It now scores 0.05 like any other read.
+  The exemption is an allowlist of exactly `count()`, because most things that
+  look like aggregates return the data: `max(password)` is the largest password
+  verbatim, `group_concat` and `string_agg` return every row in one string,
+  `mode() WITHIN GROUP` the most common value, and `sum(balance) WHERE id = 42`
+  is that one person's balance. `GROUP BY`, `HAVING` and set operators
+  disqualify too. A `WHERE` clause does not, which leaves repeated filtered
+  counts as a blind oracle — bounded by rate limiting and the operation log
+  rather than by scoring.
+
 - **`mutedRules` and `ruleOverrides` were discarded when the policy file was
   read.** `loadPolicy` rebuilt the policy from three named keys, so both fields
   were parsed and thrown away. The proxy reads them off the active policy, but
