@@ -48,8 +48,12 @@ outright, or skip scoring altogether and force a decision.
 ```
 
 - **allow** — the operation runs. You see it in the log afterwards.
-- **require_approval** — the operation is paused, a checkpoint is taken, and it
-  waits for you (`agentsgate approvals`, or the dashboard).
+- **require_approval** — under `agentsgate proxy` the call is held: the tool is
+  not run until you answer. It appears in `agentsgate approvals` and on the
+  dashboard; `agentsgate approve <id>` releases it, `agentsgate deny <id>`
+  refuses it. No answer within `approvals.waitTimeoutMs` (default 60s) is a
+  denial, and so is a dashboard that is not running. Under the HTTP proxy the
+  queue is a review log — the decision is recorded, the caller is not blocked.
 - **block** — the operation is refused and the reason is recorded.
 
 Nothing is required to get started: with no policy file at all, the built-in

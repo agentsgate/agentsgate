@@ -263,10 +263,21 @@ Operations are scored 0.0 (safe) → 1.0 (extremely risky) using three layers:
 | Score range | Action |
 |-------------|--------|
 | < 0.3 | `allow` — proceed immediately |
-| 0.3 – 0.69 | `require_approval` — pause, create checkpoint, wait for user |
+| 0.3 – 0.69 | `require_approval` — hold the call, checkpoint, wait for a human |
 | ≥ 0.7 | `block` — reject outright |
 
 Override thresholds in `policy.json` or `config.json`.
+
+**How the hold works.** Under `agentsgate proxy` — the mode `agentsgate inject`
+configures for Claude Desktop — the tool call is held: the MCP server is not
+called until someone answers. The operation appears in `agentsgate approvals`
+and on the dashboard; `agentsgate approve <id>` releases it, `agentsgate deny
+<id>` refuses it. Nobody answering within `approvals.waitTimeoutMs` (default
+60s) is a denial, as is a dashboard that is not running — the proxy sits
+synchronously in the request path, so anything it cannot resolve, it refuses.
+
+Under the HTTP proxy the queue is a review log rather than a gate: the decision
+is recorded and the caller is not blocked.
 
 ---
 

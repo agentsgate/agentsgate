@@ -81,15 +81,30 @@
   forwarded — and have been updated to supply an approver where they were
   really testing what happens to an approved call.
 
-  Note the related limitation this exposed: `ApprovalQueue.resolve()` only
-  removes the item and records the outcome for L2 scoring. Nothing anywhere
-  waits on it, so approve/deny has always been after-the-fact review rather
-  than a gate. stdio is the one place that can hold a call, and now does. The
-  interactive path — queueing from stdio and having `agentsgate approve` release
-  it — is not built yet, so today a `require_approval` operation under
-  `agentsgate proxy` is refused rather than queued. Lower
-  `intervention.blockAtOrAbove`, or write a policy rule, to choose deliberately
-  between allow and block until then.
+  Investigating it turned up a wider point: `ApprovalQueue.resolve()` only
+  removed the item and recorded the outcome for L2 scoring, and nothing anywhere
+  waited on it — approve/deny had always been after-the-fact review rather than
+  a gate. stdio is the one place that can hold a call, and the rest of this
+  entry makes that hold usable.
+
+- **`agentsgate approve` now releases a held call.** The stdio proxy runs where
+  the MCP client launched it and the dashboard runs under `agentsgate start`, so
+  the two share only the SQLite file. A `require_approval` operation is written
+  there, the dashboard lists it — `GET /approvals/pending` re-reads the store
+  rather than only its own memory — and the verdict comes back the same way.
+  Approve and the tool runs; deny, or answer nothing within
+  `approvals.waitTimeoutMs` (new, default 60s), and it does not.
+
+  Approvals are settled in place instead of deleted: `PendingApprovalRecord`
+  gains `verdict` and `resolvedAt`, added by migration so existing databases
+  keep working. A deleted row cannot tell a waiting process approved from denied
+  from expired. The first verdict stands, so an approval arriving after the call
+  was already refused cannot release it retroactively.
+
+  `approvals.waitTimeoutMs` is deliberately short. The MCP client is blocked for
+  the whole wait and has a timeout of its own; waiting longer than the client
+  does means it gives up and a later approval would run the tool with nobody
+  left to receive the result.
 
 
 - **A policy pattern written `/…/i` never matched.** Match values were treated
