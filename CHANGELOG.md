@@ -21,6 +21,36 @@
   `logs.retentionDays` row said only that its default was unset; it now says
   what that means — startup does no auto-pruning at all, while
   `agentsgate prune` still falls back to 30 days.
+- **The policy guide was rewritten and merged with the README's policy section**
+  into [docs/policy-guide.md](docs/policy-guide.md), aimed at someone who has
+  never written a policy file. Writing it turned up the three defects below;
+  every command and every sample output in it was run against the built CLI.
+
+### Fixed
+
+- **`mutedRules` and `ruleOverrides` were discarded when the policy file was
+  read.** `loadPolicy` rebuilt the policy from three named keys, so both fields
+  were parsed and thrown away. The proxy reads them off the active policy, but
+  nothing could put them there: muting a noisy built-in rule or re-scoring one
+  did nothing at all, with no error. Documented since the feature shipped.
+
+### Security
+
+- **A policy pattern written `/…/i` never matched.** Match values were treated
+  as a regular expression only when they both started and ended with a slash, so
+  any pattern carrying flags — the form used in the README, in the policy guide,
+  and in **every built-in preset** — fell through to an exact string comparison.
+  `agentsgate policy preset apply readonly` claims to block every write, delete
+  and exec, and blocked none of them; `strict` was equally inert. Anyone who
+  applied a preset to lock an agent down got no rule enforcement whatsoever.
+  Flags are now honoured, and omitting them still means case-insensitive, so
+  existing `/…/` patterns are unaffected.
+- **A policy file that failed to parse disarmed the running policy.** With
+  `--policy` set the file is watched; `loadPolicy` answered "no rules" for a
+  malformed file exactly as it does for a missing one, so saving a half-typed
+  edit swapped the live policy for an empty one — silently, and for as long as
+  the typo survived. A file that does not parse is now ignored, the previous
+  policy stays in force, and the reason is printed to stderr.
 
 ---
 

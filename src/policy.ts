@@ -32,6 +32,7 @@ import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs/promises';
 import { watch, type FSWatcher } from 'node:fs';
+export type { FSWatcher };
 import type { MCPOperation } from './types/interfaces.js';
 
 // ── Policy types ──────────────────────────────────────────────────────────────
@@ -223,9 +224,23 @@ function normalizeForMatch(s: string): string {
  * normalized to prevent block-rule evasion. Arbitrary param values
  * (`paramsMatch`) keep strict case-sensitive equality.
  */
+/**
+ * `/body/` and `/body/flags` are regular expressions; anything else is a literal.
+ *
+ * Requiring the pattern to end in a slash meant `/delete|drop/i` — the form used
+ * in the README, in docs/policy-guide.md and in every built-in preset — was
+ * compared as a literal string and never matched, leaving those presets inert.
+ *
+ * Omitting flags keeps the historical case-insensitive behaviour, so existing
+ * `/body/` patterns are unaffected.
+ */
+const REGEX_PATTERN = /^\/(.+)\/([a-z]*)$/;
+
 function matchesField(value: string, pattern: string, normalize = false): boolean {
-  if (pattern.startsWith('/') && pattern.endsWith('/') && pattern.length > 2) {
-    return safeRegexTest(pattern.slice(1, -1), 'i', value);
+  const asRegex = REGEX_PATTERN.exec(pattern);
+  if (asRegex) {
+    const [, source, flags] = asRegex;
+    return safeRegexTest(source!, flags || 'i', value);
   }
   return normalize ? normalizeForMatch(value) === normalizeForMatch(pattern) : value === pattern;
 }
@@ -397,17 +412,38 @@ export function getPolicyRedactKeys(
  *
  * @param policyPath — explicit path; falls back to ~/.agentsgate/policy.json
  */
+function defaultPolicyPath(policyPath?: string): string {
+  return policyPath ?? path.join(os.homedir(), '.agentsgate', 'policy.json');
+}
+
+/**
+ * Read and parse a policy file, throwing on anything that goes wrong.
+ *
+ * Callers that must distinguish "there is no policy" from "the policy is
+ * broken" use this; `loadPolicy` wraps it with the forgiving behaviour.
+ */
+async function readPolicyFile(filePath: string): Promise<AgentsGatePolicy> {
+  const raw = await fs.readFile(filePath, 'utf-8');
+  const parsed = JSON.parse(raw) as Partial<AgentsGatePolicy>;
+  // Every field the file declares, not a hand-picked three. Listing them by
+  // name silently dropped `mutedRules` and `ruleOverrides`, so muting a noisy
+  // L1 rule or re-scoring one did nothing — the proxy reads both off the
+  // active policy, but nothing could put them there.
+  return { ...parsed, rules: parsed.rules ?? [] };
+}
+
 export async function loadPolicy(policyPath?: string): Promise<AgentsGatePolicy> {
-  const filePath = policyPath ?? path.join(os.homedir(), '.agentsgate', 'policy.json');
+  const filePath = defaultPolicyPath(policyPath);
   try {
-    const raw = await fs.readFile(filePath, 'utf-8');
-    const parsed = JSON.parse(raw) as Partial<AgentsGatePolicy>;
-    return {
-      rules: parsed.rules ?? [],
-      thresholds: parsed.thresholds,
-      agents: parsed.agents,
-    };
-  } catch {
+    return await readPolicyFile(filePath);
+  } catch (err) {
+    // No file is a legitimate state — it means "no policy". A file that exists
+    // but does not parse is a mistake, and returning an empty policy for it
+    // without a word looks identical to having no rules at all.
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn(`[policy] could not read ${filePath}: ${(err as Error).message}`);
+      console.warn('[policy] continuing with no custom rules — built-in L1 rules still apply.');
+    }
     return { rules: [] };
   }
 }
@@ -484,9 +520,16 @@ export function watchPolicy(
   const watcher = watch(policyPath, () => {
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => {
-      loadPolicy(policyPath)
+      // readPolicyFile, not loadPolicy: a half-typed edit must leave the
+      // running policy alone. loadPolicy answers "no rules" for a broken file,
+      // which here would disarm every rule the moment the file was saved
+      // mid-keystroke — silently, and for as long as the typo survived.
+      readPolicyFile(policyPath)
         .then(p => onReload(p))
-        .catch(() => { /* ignore parse errors during hot-reload */ });
+        .catch((err: unknown) => {
+          console.warn(`[policy] ${policyPath} did not parse — keeping the previous policy.`);
+          console.warn(`[policy] ${(err as Error).message}`);
+        });
     }, 200);
   });
 
