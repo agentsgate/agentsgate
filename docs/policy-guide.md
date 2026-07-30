@@ -343,6 +343,34 @@ weighted the way you want.
 `agentsgate policy list` prints every built-in rule ID, which is where you get
 the names for both.
 
+### A note on database reads
+
+`L1_DB_EXFIL` scores a SELECT at `0.60` when it names a table that sounds
+sensitive — `users`, `passwords`, `tokens`, `credentials`, `billing` and
+similar. Counting is exempt, because a count reveals a number and no column
+values:
+
+```sql
+SELECT count(*) FROM users            -- 0.05, allowed
+SELECT count(*) FROM users WHERE active   -- 0.05, allowed
+SELECT * FROM users                   -- 0.60, waits for approval
+```
+
+The exemption covers `count()` and nothing else, deliberately. `max(password)`
+is the largest password verbatim; `group_concat(email)` and `string_agg(email)`
+return every row in one string; `sum(balance) WHERE id = 42` is one person's
+balance. A `GROUP BY`, a `HAVING`, or a `UNION` also disqualifies.
+
+Two limits worth knowing:
+
+- **The table-name list is literal.** `users` is on it, `user` is not — so
+  `SELECT * FROM user` scores `0.05`. If your schema uses singular names, add a
+  rule with `paramsMatch` on the SQL text.
+- **Repeated filtered counts are still an oracle.** `count(*) FROM users WHERE
+  password LIKE 'a%'`, asked enough times, narrows a value down. Scoring does
+  not catch that; rate limiting (`rateLimit` in `config.json`) and reading the
+  operation log do.
+
 > Both fields were silently discarded before 0.1.3 — read out of the file and
 > thrown away — so muting and re-scoring did nothing at all. Likewise, a pattern
 > written `/…/i` never matched anything until 0.1.3, which left every built-in
