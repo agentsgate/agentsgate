@@ -272,63 +272,23 @@ Override thresholds in `policy.json` or `config.json`.
 
 ## Policy System
 
-Create `~/.agentsgate/policy.json` to define custom rules:
+Built-in rules score every operation; a policy lets you overrule them —
+block a tool outright, trust a particular agent, or raise the bar for
+anything touching `/secrets/`. Policies live in `~/.agentsgate/policy.json`
+and need no code.
 
-```json
-{
-  "rules": [
-    {
-      "id": "BLOCK_PROD_DB_DELETE",
-      "description": "Always block deletes on the production database tool",
-      "match": { "tool": "database", "method": "/delete|drop/i" },
-      "action": "block"
-    },
-    {
-      "id": "TRUST_READONLY_AGENT",
-      "description": "Treat all ops from the readonly-agent as low risk",
-      "match": { "agentId": "readonly-agent" },
-      "score": 0.05
-    },
-    {
-      "id": "ELEVATE_SECRET_WRITES",
-      "description": "Treat writes to /secrets/ as very high risk",
-      "match": { "pathPattern": "/secrets/" },
-      "score": 0.95
-    }
-  ],
-  "thresholds": { "allowBelow": 0.2, "blockAtOrAbove": 0.8 },
-  "agents": {
-    "denylist": ["untrusted-agent-*"],
-    "allowlist": [],
-    "toolRules": {
-      "limited-agent": {
-        "allowlist": ["filesystem", "search"]
-      }
-    }
-  },
-  "mutedRules": [],
-  "ruleOverrides": {
-    "L1_OVERWRITE_FILE": 0.4
-  }
-}
+```bash
+# Never let an agent delete a file
+agentsgate policy add --id=NO_DELETES --tool=filesystem \
+  --method='/delete|unlink|rm/i' --action=block
+
+# Check it, without involving a real agent
+agentsgate policy test --tool=filesystem --method=delete_file
 ```
 
-### Policy rule fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique rule identifier |
-| `description` | string | Human-readable description (optional) |
-| `match.tool` | string | Exact or `/regex/` match on tool name |
-| `match.method` | string | Exact or `/regex/` match on method name |
-| `match.agentId` | string | Exact or `/regex/` match on agent ID |
-| `match.pathPattern` | string | Regex matched against params.path / params.filePath |
-| `match.tags` | string[] | Operation must have ALL of these tags |
-| `score` | number | Override L1 risk score (0–1) |
-| `action` | string | Force `allow`, `block`, or `require_approval` |
-| `priority` | number | Evaluation order — lower wins (default: 100) |
-| `max` | number | Maximum score this rule can produce |
-| `redact` | string[] | Parameter keys to redact in the audit log |
+See **[docs/policy-guide.md](docs/policy-guide.md)** for the full guide:
+matching, rule priority, thresholds, per-agent tool restrictions, tuning the
+built-in rules, presets, and hot reload.
 
 ---
 
