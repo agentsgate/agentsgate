@@ -2,6 +2,22 @@
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **The CLI reference moved out of the README** into
+  [docs/cli.md](docs/cli.md). The README kept a short table of the commands
+  most people need and links to the full one; it was 678 lines, of which 149
+  were command tables. The moved text also claimed
+  `agentsgate <command> --help` gave per-command flags, which was never
+  implemented — `--help` is only recognised as a top-level command, so
+  `agentsgate start --help` was parsed as an argument to `start`. That
+  sentence is gone, and `--version` and `--help` are now listed like any
+  other command.
+
+---
+
 ## [0.1.2] — 2026-07-29
 
 ### Changed

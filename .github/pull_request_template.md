@@ -23,7 +23,7 @@ the command and its result.
 - [ ] Tests cover the new behaviour, and fail without the change
 - [ ] No credentials, personal paths, or machine-specific values added
 - [ ] Docs updated if a command, config key, or endpoint changed
-  (README CLI reference and config table, `docs/`)
+  (`docs/cli.md` for commands and flags, README config table, `docs/`)
 - [ ] CHANGELOG updated under `[Unreleased]` if user-visible
 - [ ] SECURITY.md updated if this changes the trust model, an outbound request,
       or an authentication path
