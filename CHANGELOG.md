@@ -40,6 +40,18 @@
   disqualify too. A `WHERE` clause does not, which leaves repeated filtered
   counts as a blind oracle — bounded by rate limiting and the operation log
   rather than by scoring.
+- **A singular table name is now as sensitive as a plural one.**
+  `L1_DB_EXFIL` searched the whole SQL for words like `users`, and that list
+  carried no `user` — as a substring it would have matched `user_id` and
+  `username` in ordinary queries. So `SELECT * FROM user` scored 0.05 while
+  `SELECT * FROM users` scored 0.60 on identical data, and schemas naming
+  tables in the singular (Django, JPA and Prisma conventions among them) got no
+  protection. Table names are now also read from their position after `FROM` and
+  `JOIN`, where `user` cannot be confused with a column: `user`, `users`,
+  `public."User"`, `app_user` and `user_accounts` all count, while
+  `SELECT user_id FROM orders` still does not. The whole-text search stays, so a
+  sensitive *column* on an unremarkable table — `SELECT password FROM accounts`
+  — is unaffected.
 
 - **`mutedRules` and `ruleOverrides` were discarded when the policy file was
   read.** `loadPolicy` rebuilt the policy from three named keys, so both fields

@@ -83,12 +83,73 @@ function sqlUpdateWithoutWhere(op: MCPOperation): boolean {
   return !/\bWHERE\b/.test(sql);
 }
 
-/** Returns true if SELECT targets a known-sensitive table name. */
+/**
+ * Sensitive words, searched for anywhere in the SQL — so a sensitive *column*
+ * counts too, as in `SELECT password FROM accounts`.
+ *
+ * `user` is absent on purpose: as a substring it matches `user_id` and
+ * `username`, which appear in perfectly ordinary queries. It is picked up by
+ * table position instead, below.
+ */
+const SENSITIVE_SQL_WORDS =
+  /\b(users|passwords|password|tokens|token|secrets|secret|credentials|credential|api_keys|api_key|auth_tokens|auth_token|private_keys|private_key|billing|ssn|payment|credit_card)\b/i;
+
+/** The same concepts in singular base form, for matching a table name. */
+const SENSITIVE_TABLE_WORDS = new Set([
+  'user', 'password', 'token', 'secret', 'credential',
+  'api_key', 'auth_token', 'private_key',
+  'billing', 'ssn', 'payment', 'credit_card',
+]);
+
+/**
+ * Table names as they appear after FROM or JOIN, stripped of schema prefix,
+ * quoting and alias: `public."User" AS u` → `USER`.
+ */
+const TABLE_LIST_END =
+  /\b(WHERE|GROUP|ORDER|LIMIT|HAVING|UNION|INTERSECT|EXCEPT|JOIN|ON|USING|INNER|LEFT|RIGHT|FULL|CROSS|WINDOW|OFFSET|FETCH|FOR)\b/;
+
+function sqlTableNames(sql: string): string[] {
+  const names: string[] = [];
+  const re = /\b(?:FROM|JOIN)\s+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(sql)) !== null) {
+    let list = sql.slice(m.index + m[0].length);
+    const end = list.search(TABLE_LIST_END);
+    if (end >= 0) list = list.slice(0, end);
+    // `orders o, public."User" AS u` → one entry per comma; the table is the
+    // first token of each, and the alias that may follow is discarded.
+    for (const entry of list.split(',')) {
+      const first = entry.trim().split(/\s+/)[0] ?? '';
+      const bare = (first.split('.').pop() ?? first).replace(/["`[\]()]/g, '');
+      if (bare && /^[A-Z0-9_]+$/.test(bare)) names.push(bare);
+    }
+  }
+  return names;
+}
+
+/**
+ * Does a table name name something sensitive?
+ *
+ * Compared per underscore-separated component with a trailing `s` stripped, so
+ * `user`, `users`, `USER`, `app_user` and `user_accounts` all count while a
+ * column called `user_id` — never in table position — does not.
+ */
+function isSensitiveTableName(name: string): boolean {
+  return name.split('_').some((_, i, parts) => {
+    for (let end = parts.length; end > i; end--) {
+      const candidate = parts.slice(i, end).join('_').replace(/S$/, '').toLowerCase();
+      if (SENSITIVE_TABLE_WORDS.has(candidate)) return true;
+    }
+    return false;
+  });
+}
+
+/** Returns true if SELECT targets a known-sensitive table or column name. */
 function sqlTargetsSensitiveTable(op: MCPOperation): boolean {
   const sql = getSql(op);
   if (!sql.startsWith('SELECT')) return false;
-  const SENSITIVE = /\b(users|passwords|password|tokens|token|secrets|secret|credentials|credential|api_keys|api_key|auth_tokens|auth_token|private_keys|private_key|billing|ssn|payment|credit_card)\b/i;
-  return SENSITIVE.test(sql);
+  if (SENSITIVE_SQL_WORDS.test(sql)) return true;
+  return sqlTableNames(sql).some(isSensitiveTableName);
 }
 
 /**

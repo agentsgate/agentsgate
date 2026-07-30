@@ -361,15 +361,34 @@ is the largest password verbatim; `group_concat(email)` and `string_agg(email)`
 return every row in one string; `sum(balance) WHERE id = 42` is one person's
 balance. A `GROUP BY`, a `HAVING`, or a `UNION` also disqualifies.
 
-Two limits worth knowing:
+Singular and plural are both recognised, and so is a compound name:
 
-- **The table-name list is literal.** `users` is on it, `user` is not — so
-  `SELECT * FROM user` scores `0.05`. If your schema uses singular names, add a
-  rule with `paramsMatch` on the SQL text.
-- **Repeated filtered counts are still an oracle.** `count(*) FROM users WHERE
-  password LIKE 'a%'`, asked enough times, narrows a value down. Scoring does
-  not catch that; rate limiting (`rateLimit` in `config.json`) and reading the
-  operation log do.
+```sql
+SELECT * FROM user             -- 0.60
+SELECT * FROM users            -- 0.60
+SELECT * FROM public."User"    -- 0.60
+SELECT * FROM user_accounts    -- 0.60
+SELECT * FROM app_user         -- 0.60
+```
+
+A sensitive *column* counts as well, whatever the table is called:
+
+```sql
+SELECT password FROM accounts  -- 0.60
+```
+
+A column merely named after one does not, which is why `user` is matched only in
+table position:
+
+```sql
+SELECT user_id FROM orders     -- 0.05
+SELECT username FROM profiles  -- 0.05
+```
+
+One limit worth knowing: **repeated filtered counts are still an oracle.**
+`count(*) FROM users WHERE password LIKE 'a%'`, asked enough times, narrows a
+value down. Scoring does not catch that; rate limiting (`rateLimit` in
+`config.json`) and reading the operation log do.
 
 > Both fields were silently discarded before 0.1.3 — read out of the file and
 > thrown away — so muting and re-scoring did nothing at all. Likewise, a pattern
