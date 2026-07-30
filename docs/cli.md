@@ -4,7 +4,9 @@ Every `agentsgate` command, grouped by category. `agentsgate --help` prints
 the same list from the binary itself, and `agentsgate --version` prints the
 version. There is no per-command help — flags are documented here.
 
-For the REST API the dashboard exposes, see [api-reference.md](api-reference.md).
+For the config file every command reads, see
+[configuration.md](configuration.md). For the REST API the dashboard exposes,
+see [api-reference.md](api-reference.md).
 
 ---
 
