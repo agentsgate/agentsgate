@@ -169,10 +169,12 @@ jobs:
           registry-url: https://registry.npmjs.org/
           cache: npm
 
-      # Node 20 ships npm 10, which has no OIDC support. Trusted publishing
-      # needs 11.5.1 or later.
+      # Node 20 ships npm 10, which has no OIDC support; trusted publishing needs
+      # 11.5.1 or later. The major is pinned rather than tracking `latest`: npm 12
+      # requires Node 22 or newer, so `npm@latest` fails to install on this job's
+      # Node 20 — and npm 13 would do the same to Node 22 later.
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Install dependencies
         run: npm ci

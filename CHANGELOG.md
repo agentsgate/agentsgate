@@ -15,7 +15,10 @@
   with `package.json`.
 - **Publishing authenticates over OIDC** via npm trusted publishing, so no npm
   token is stored in the repository. Nothing to rotate or leak, and the package
-  can keep npm's strictest publishing-access setting.
+  can keep npm's strictest publishing-access setting. This needs npm 11.5.1 or
+  later, which the publish job installs itself — Node 20 ships npm 10. The npm
+  major is pinned: `npm@latest` is 12, which requires Node 22 or newer and so
+  cannot install on that job at all.
 - **`npm publish` runs with `--ignore-scripts` in CI.** `prepublishOnly` re-ran
   lint, all 7,258 tests and the build inside the publish step, after the same
   work had already passed across seven CI legs — duplicated effort whose only
