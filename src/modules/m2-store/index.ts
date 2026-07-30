@@ -27,6 +27,15 @@ export interface PendingApprovalRecord {
   riskScore: number;
   checkpointId?: string;
   queuedAt: Date;
+  /**
+   * How it was settled, once it has been. Absent means still waiting.
+   *
+   * Kept rather than deleting the row, because the stdio proxy holds a call in
+   * a different process from the dashboard that answers: it has to read back
+   * which answer arrived, and an absent row cannot tell approved from denied.
+   */
+  verdict?: 'approved' | 'denied';
+  resolvedAt?: Date;
 }
 
 /**
@@ -105,6 +114,9 @@ export class StateStore {
       'ALTER TABLE operation_logs ADD COLUMN agent_id   TEXT',
       'ALTER TABLE operation_logs ADD COLUMN tool       TEXT',
       'ALTER TABLE operation_logs ADD COLUMN session_id TEXT',
+      // Verdict columns for pending_approvals, added with the stdio approval gate.
+      'ALTER TABLE pending_approvals ADD COLUMN verdict     TEXT',
+      'ALTER TABLE pending_approvals ADD COLUMN resolved_at TEXT',
     ]) {
       try { this.db.exec(col); } catch { /* column already exists */ }
     }
@@ -363,12 +375,50 @@ export class StateStore {
     );
   }
 
+  /** Approvals still waiting for an answer. Settled rows are excluded. */
   async listPendingApprovals(): Promise<PendingApprovalRecord[]> {
     this.assertOpen();
     const rows = this.db!.prepare(
-      'SELECT data FROM pending_approvals ORDER BY queued_at DESC'
+      'SELECT data FROM pending_approvals WHERE verdict IS NULL ORDER BY queued_at DESC'
     ).all() as { data: string }[];
     return rows.map(r => deserializePendingApproval(r.data));
+  }
+
+  /** One approval by id, settled or not. Undefined when there is no such row. */
+  async getPendingApproval(id: string): Promise<PendingApprovalRecord | undefined> {
+    this.assertOpen();
+    const row = this.db!.prepare(
+      'SELECT data, verdict, resolved_at FROM pending_approvals WHERE id = ?'
+    ).get(id) as { data: string; verdict: string | null; resolved_at: string | null } | undefined;
+    if (!row) return undefined;
+    const record = deserializePendingApproval(row.data);
+    if (row.verdict === 'approved' || row.verdict === 'denied') {
+      record.verdict = row.verdict;
+      record.resolvedAt = row.resolved_at ? new Date(row.resolved_at) : new Date();
+    }
+    return record;
+  }
+
+  /**
+   * Settle an approval. Returns false when there is no such row, or when it has
+   * already been settled — the first answer stands, so a late second one cannot
+   * flip an operation that has been acted on.
+   */
+  async resolvePendingApproval(id: string, verdict: 'approved' | 'denied'): Promise<boolean> {
+    this.assertOpen();
+    const result = this.db!.prepare(
+      'UPDATE pending_approvals SET verdict = ?, resolved_at = ? WHERE id = ? AND verdict IS NULL'
+    ).run(verdict, new Date().toISOString(), id);
+    return result.changes > 0;
+  }
+
+  /** Drop settled rows resolved before `cutoff`. Returns how many went. */
+  async pruneResolvedApprovals(cutoff: Date): Promise<number> {
+    this.assertOpen();
+    const result = this.db!.prepare(
+      'DELETE FROM pending_approvals WHERE verdict IS NOT NULL AND resolved_at < ?'
+    ).run(cutoff.toISOString());
+    return result.changes;
   }
 
   async deletePendingApproval(id: string): Promise<void> {

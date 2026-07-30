@@ -176,7 +176,18 @@ export class ApprovalQueue {
     void delivery.finally(() => this.inFlightWebhooks.delete(delivery));
   }
 
-  /** Resolves once all fire-and-forget webhook deliveries have settled. */
+  /**
+   * Track a fire-and-forget store write the same way, so `whenIdle()` covers
+   * persistence too — a caller that resolves and then reads the verdict back
+   * has something to await.
+   */
+  private trackWrite(write: Promise<unknown>): void {
+    const settled = write.then(() => undefined, () => undefined);
+    this.inFlightWebhooks.add(settled);
+    void settled.finally(() => this.inFlightWebhooks.delete(settled));
+  }
+
+  /** Resolves once all fire-and-forget webhook deliveries and store writes have settled. */
   async whenIdle(): Promise<void> {
     while (this.inFlightWebhooks.size > 0) {
       await Promise.allSettled([...this.inFlightWebhooks]);
@@ -228,7 +239,32 @@ export class ApprovalQueue {
     return [...this.pending.values()];
   }
 
-  resolve(id: string): PendingApproval | undefined {
+  /**
+   * Re-read the shared store, so approvals queued by another process — the
+   * stdio proxy runs under the MCP client, not under `agentsgate start` —
+   * become visible here. A no-op without a store.
+   */
+  async refresh(): Promise<PendingApproval[]> {
+    if (this.store) {
+      for (const item of await this.store.listPendingApprovals()) {
+        if (!this.pending.has(item.id)) this.pending.set(item.id, toPendingApproval(item));
+      }
+    }
+    return this.getPending();
+  }
+
+  /**
+   * Settle an approval.
+   *
+   * The verdict is written to the store rather than the row being deleted:
+   * whoever is holding the operation reads it back from there, and "the row is
+   * gone" cannot tell approved from denied from expired. Defaults to
+   * `approved` so callers written before the gate existed keep their meaning.
+   *
+   * Returns the item when this call settled it, including one queued by another
+   * process, and undefined when there was nothing to settle.
+   */
+  resolve(id: string, verdict: 'approved' | 'denied' = 'approved'): PendingApproval | undefined {
     this.pruneExpired();
 
     // Cancel any pending escalation timer
@@ -243,8 +279,8 @@ export class ApprovalQueue {
     const item = this.pending.get(id);
     this.pending.delete(id);
 
-    if (item && this.store) {
-      void this.store.deletePendingApproval(id);
+    if (this.store) {
+      this.trackWrite(this.store.resolvePendingApproval(id, verdict));
     }
 
     return item;

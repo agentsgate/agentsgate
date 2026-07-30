@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { MCPProxy, createPipeline } from '../modules/m1-proxy/index.js';
 import { MCPStdioProxy } from '../modules/m1-proxy/stdio.js';
+import { createApprovalResolver } from './approval-resolver.js';
 import { StateStore } from '../modules/m2-store/index.js';
 import { OperationLogger } from '../modules/m3-logger/index.js';
 import { CheckpointEngine } from '../modules/m4-checkpoint/index.js';
@@ -475,10 +476,18 @@ export async function cmdProxy(args: string[]): Promise<void> {
     policy: policy.rules.length > 0 ? policy : undefined,
   });
 
+  // Holds a require_approval operation until the dashboard — another process,
+  // sharing this database — answers. Denies on timeout.
+  const awaitApproval = createApprovalResolver({
+    store,
+    timeoutMs: config.approvals?.waitTimeoutMs ?? 60_000,
+  });
+
   const proxy = new MCPStdioProxy({
     command: serverCommand,
     evaluateRisk: pipeline.evaluateRisk!,
     agentId,
+    awaitApproval,
     onIntercept: (op, dec) => {
       // Write to stderr so it doesn't pollute the JSON-RPC stdout stream
       process.stderr.write(

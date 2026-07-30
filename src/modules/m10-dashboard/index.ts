@@ -401,7 +401,7 @@ export class DashboardAPI {
         }
 
         if (segments[0] === 'approvals' && segments[1] === 'pending') {
-          return this.listPendingApprovals(res);
+          return await this.listPendingApprovals(res);
         }
 
         if (segments[0] === 'rollback' && segments[1] && segments[2] === 'preview') {
@@ -958,8 +958,11 @@ export class DashboardAPI {
     });
   }
 
-  private listPendingApprovals(res: http.ServerResponse): void {
-    const items = this.queue?.getPending() ?? [];
+  private async listPendingApprovals(res: http.ServerResponse): Promise<void> {
+    // refresh(), not getPending(): the stdio proxy queues into the shared
+    // database from its own process, and those approvals are the ones most
+    // likely to have someone waiting on them.
+    const items = (await this.queue?.refresh()) ?? [];
     const ttlMs = this.queue?.ttlMs ?? 86_400_000;
     const enriched = items.map(a => ({
       ...a,
@@ -3324,10 +3327,14 @@ export class DashboardAPI {
       return json(res, 503, { error: 'Approval queue not configured' });
     }
 
-    const item = this.queue.resolve(id);
+    await this.queue.refresh();
+    const item = this.queue.resolve(id, approved ? 'approved' : 'denied');
     if (!item) {
       return json(res, 404, { error: `Approval ${id} not found or already resolved` });
     }
+    // The stdio proxy is blocked on this verdict in another process; make sure
+    // it has landed in the database before we answer the approver.
+    await this.queue.whenIdle();
 
     // Inform the intelligence engine so L2 scoring can learn from this outcome
     if (this.intelligenceEngine) {

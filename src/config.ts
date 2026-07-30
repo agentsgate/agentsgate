@@ -54,6 +54,16 @@ export interface AgentsGateConfig {
   approvals?: {
     /** Maximum age of a queued approval before it is auto-expired (default: 86400000 = 24h). */
     maxAgeMs: number;
+    /**
+     * How long `agentsgate proxy` holds a require_approval operation while it
+     * waits for someone to answer, before denying it (default: 60000 = 60s).
+     *
+     * The MCP client is blocked for this whole time and has a timeout of its
+     * own. Waiting longer than the client does is worse than useless: it gives
+     * up, and an approval arriving afterwards would run the tool with nobody
+     * left to receive the result.
+     */
+    waitTimeoutMs?: number;
   };
   telemetry?: {
     /** HTTP endpoint for periodic telemetry export. */

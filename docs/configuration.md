@@ -73,6 +73,7 @@ Anything security-relevant is called out in the table. Read the
 | `webhook.secret` | — | HMAC-SHA256 secret. When set, every webhook POST carries `X-AgentsGate-Signature: sha256=<hex>` over the raw body — verify it before acting |
 | `webhook.slackUrl` | — | Slack Incoming Webhook for block/approval events |
 | `approvals.maxAgeMs` | `86400000` | Approval TTL in ms (default: 24h) |
+| `approvals.waitTimeoutMs` | `60000` | How long `agentsgate proxy` holds a `require_approval` call waiting for an answer before denying it. The MCP client is blocked for this whole time and has a timeout of its own — waiting longer than the client does means it gives up, and a later approval would run the tool with nobody left to receive the result |
 | `telemetry.exportEndpoint` | — | HTTP endpoint for periodic telemetry export |
 | `telemetry.exportIntervalMs` | `300000` | Export interval in ms (default: 5 min) |
 | `telemetry.anomalyWebhookUrl` | — | Webhook for z-score anomaly alerts |
