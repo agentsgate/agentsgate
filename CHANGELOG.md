@@ -15,6 +15,12 @@
   `agentsgate start --help` was parsed as an argument to `start`. That
   sentence is gone, and `--version` and `--help` are now listed like any
   other command.
+- **The configuration reference moved out of the README** into
+  [docs/configuration.md](docs/configuration.md), same reasoning. The README
+  keeps the four settings most deployments touch and links to the rest. The
+  `logs.retentionDays` row said only that its default was unset; it now says
+  what that means — startup does no auto-pruning at all, while
+  `agentsgate prune` still falls back to 30 days.
 
 ---
 
