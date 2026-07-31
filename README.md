@@ -7,10 +7,11 @@
 
 **AI Agent I/O Tracking & Rollback System — MCP Proxy Gateway**
 
-> **Status: 0.1.0, first public release.** The proxy, risk scoring, checkpoints
-> and rollback are covered by 7,200 tests, but the API surface should be treated
-> as unstable until 1.0 — command flags and config keys may still change. Read
-> [SECURITY.md](SECURITY.md) before exposing anything beyond loopback.
+> **Status: 0.1.3.** The proxy, risk scoring, checkpoints and rollback are
+> covered by 7,428 tests, but the API surface should be treated as unstable
+> until 1.0 — command flags and config keys may still change. Read
+> [SECURITY.md](SECURITY.md) before exposing anything beyond loopback, and
+> `agentsgate level` before assuming what the defaults stop.
 
 AgentsGate sits between AI agents (Claude, GPT, etc.) and the MCP tools they call. Every tool call is intercepted, risk-scored, checkpointed, and optionally paused for human approval before execution. If an agent does something destructive, you can roll back in seconds.
 

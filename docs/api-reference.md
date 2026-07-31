@@ -30,8 +30,17 @@ Liveness check. Always public (no API key required).
 ```json
 {
   "status": "ok",
-  "uptime": 3600,
-  "version": "0.1.0"
+  "version": "0.1.3",
+  "uptimeMs": 3600000,
+  "startedAt": "2026-07-31T10:06:54.748Z",
+  "db": {
+    "operationLogs": 42,
+    "checkpoints": 3,
+    "pendingApprovals": 0,
+    "outcomeRecords": 12
+  },
+  "opCount": 42,
+  "pendingApprovals": 0
 }
 ```
 
