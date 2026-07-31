@@ -22,6 +22,7 @@ the command and its result.
 
 - [ ] Tests cover the new behaviour, and fail without the change
 - [ ] No credentials, personal paths, or machine-specific values added
+  (`npm run check:pii`)
 - [ ] Docs updated if a command, config key, or endpoint changed
   (`docs/cli.md` for commands and flags, `docs/configuration.md` for config keys)
 - [ ] CHANGELOG updated under `[Unreleased]` if user-visible
