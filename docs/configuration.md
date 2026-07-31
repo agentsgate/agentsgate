@@ -73,6 +73,8 @@ Anything security-relevant is called out in the table. Read the
 | `webhook.secret` | — | HMAC-SHA256 secret. When set, every webhook POST carries `X-AgentsGate-Signature: sha256=<hex>` over the raw body — verify it before acting |
 | `webhook.slackUrl` | — | Slack Incoming Webhook for block/approval events |
 | `approvals.maxAgeMs` | `86400000` | Approval TTL in ms (default: 24h) |
+| `approvals.grantTtlMs` | `300000` | How long a one-time approval grant stays spendable. Approving an operation the HTTP caller was already answered about leaves a grant; the agent's retry of the same request spends it, once. Short on purpose — the retry runs against whatever the state is then |
+| `approvals.holdHttpRequests` | `false` | Hold the HTTP caller while an operator answers, as the stdio proxy does, instead of replying "needs approval" immediately. Off by default: it keeps an HTTP request open for up to `waitTimeoutMs`, which reverse proxies and load balancers may cut |
 | `approvals.waitTimeoutMs` | `60000` | How long `agentsgate proxy` holds a `require_approval` call waiting for an answer before denying it. The MCP client is blocked for this whole time and has a timeout of its own — waiting longer than the client does means it gives up, and a later approval would run the tool with nobody left to receive the result |
 | `telemetry.exportEndpoint` | — | HTTP endpoint for periodic telemetry export |
 | `telemetry.exportIntervalMs` | `300000` | Export interval in ms (default: 5 min) |
