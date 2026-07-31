@@ -58,7 +58,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "clean": "node -e \"import('node:fs/promises').then(fs => fs.rm('dist', { recursive: true, force: true }))\"",
-    "prepublishOnly": "npm run lint && npm test && npm run build"
+    "prepublishOnly": "npm run check:pii && npm run lint && npm test && npm run build",
+    "check:pii": "node scripts/check-no-pii.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

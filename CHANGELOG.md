@@ -56,7 +56,25 @@
   never written a policy file. Writing it turned up the three defects below;
   every command and every sample output in it was run against the built CLI.
 
+### Added
+
+- **`npm run check:pii`**, and the same check in CI. Word stamps its own
+  application-level user name into a PDF's `/Author` on every export, whatever
+  the source document says — so a clean `.docx` does not keep it out, and
+  remembering to strip it afterwards has already failed twice. The check scans
+  tracked files for PDF authorship, home paths, machine names and personal
+  email addresses, and fails the build on a hit. It runs in the `audit` job and
+  from `prepublishOnly`, and matches the shape of the problem rather than one
+  person's details, so it keeps working if the project changes hands.
+
 ### Fixed
+
+- **A test fixture broke on the last day of a long month.** `monthsAgo(1)`
+  subtracted a month from the 31st, which asks for "June 31" and normalises
+  forward to July 1 — so `monthsAgo(0)` and `monthsAgo(1)` landed in the same
+  month and the "distinct months" assertions counted one where they wanted two.
+  It now moves to mid-month before doing the arithmetic. Same family as the
+  window-boundary flakes fixed for 0.1.0.
 
 - **`loadConfig` dropped whole sections of the config file.** It rebuilt the
   object from a written-out list of keys, so anything added afterwards was read

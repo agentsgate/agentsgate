@@ -12424,8 +12424,12 @@ describe('v10.124', () => {
   /** Returns a Date in month offset from now (negative = past months) */
   function monthsAgo(m: number): Date {
     const d = new Date(PINNED_NOW());
-    d.setMonth(d.getMonth() - m);
+    // Mid-month first. Subtracting a month from the 31st asks for "June 31",
+    // which JS normalises forward to July 1 — so on the last day of a long
+    // month, monthsAgo(1) landed in the same month as monthsAgo(0) and the
+    // "distinct months" assertions counted one where they wanted two.
     d.setDate(15);
+    d.setMonth(d.getMonth() - m);
     d.setHours(12, 0, 0, 0);
     return d;
   }

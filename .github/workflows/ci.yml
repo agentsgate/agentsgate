@@ -71,6 +71,12 @@ jobs:
 
       - run: npm ci
 
+      # Word stamps its own user name into /Author every time a PDF is
+      # exported, whatever the source document says, so a clean .docx does not
+      # keep it out and remembering to strip it has already failed once.
+      - name: No personal identifiers in tracked files
+        run: npm run check:pii
+
       # Runtime dependencies are what reaches users, and are held at zero
       # advisories. This step fails the job if that regresses.
       - name: Audit runtime dependencies
