@@ -16,7 +16,8 @@
 
 /** What a rule is about, as opposed to how badly it scores. */
 export type RuleCategory =
-  | 'destructive'      // irreversible, wholesale: DROP, TRUNCATE, DELETE with no WHERE
+  | 'destructive'      // nothing brings it back: DROP, TRUNCATE, DELETE with no WHERE, mkfs
+  | 'bulk_delete'      // removes many things at once, but a checkpoint has them
   | 'injection'        // the shape of an attack rather than an operation
   | 'credential'       // keys, tokens, .env — reading or writing them
   | 'exfiltration'     // reading personal data
@@ -49,6 +50,7 @@ const LEVELS: Record<ProtectionLevelName, ProtectionLevel> = {
     categories: {
       destructive: 'block',
       injection: 'block',
+      bulk_delete: 'allow',
       credential: 'allow',
       exfiltration: 'allow',
       outbound_write: 'allow',
@@ -68,10 +70,11 @@ const LEVELS: Record<ProtectionLevelName, ProtectionLevel> = {
    */
   balanced: {
     name: 'balanced',
-    summary: 'Wholesale destruction and credentials are stopped. Ordinary work runs.',
+    summary: 'Irreversible loss and credentials are stopped, bulk deletes ask first. Ordinary work runs.',
     categories: {
       destructive: 'block',
       injection: 'block',
+      bulk_delete: 'require_approval',
       credential: 'block',
       exfiltration: 'allow',
       outbound_write: 'allow',
@@ -98,6 +101,7 @@ const LEVELS: Record<ProtectionLevelName, ProtectionLevel> = {
     categories: {
       destructive: 'block',
       injection: 'block',
+      bulk_delete: 'block',
       credential: 'block',
       exfiltration: 'require_approval',
       outbound_write: 'require_approval',

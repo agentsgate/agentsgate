@@ -58,6 +58,26 @@
 
 ### Added
 
+- **Deleting a tree is now distinct from deleting a file.** The database rules
+  had always drawn this line — `DELETE ... WHERE id = 1` is a routine write,
+  `DELETE FROM orders` is destruction — but the filesystem rules had not.
+  `L1_DELETE_FILE` matched on the method name alone, so removing one file and
+  removing a directory scored identically, and with `balanced` allowing
+  `write_delete` both ran without a word. The same gap existed through the
+  shell: `rm -rf /` scored as ordinary command execution, which `balanced`
+  allows.
+
+  Two rules and one category close it, split on whether a checkpoint can undo
+  the damage. `L1_DELETE_TREE` covers directory removal, a wildcard path, and
+  `rm -r` through a shell — category `bulk_delete`, which asks at `balanced`
+  and refuses at `strict`. `L1_DESTRUCTIVE_COMMAND` covers what no checkpoint
+  can restore — `mkfs`, `dd` onto a device, `shred`, a redirect into
+  `/dev/sd*` — and is `destructive`, refused at every level like its database
+  counterparts.
+
+  Deleting a single file is unchanged: it runs at `balanced`, because the
+  shadow repository has it.
+
 - **`npm run check:pii`**, and the same check in CI. Word stamps its own
   application-level user name into a PDF's `/Author` on every export, whatever
   the source document says — so a clean `.docx` does not keep it out, and

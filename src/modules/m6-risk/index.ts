@@ -246,6 +246,38 @@ function sqlHasSemicolon(op: MCPOperation): boolean {
   return sql.includes(';');
 }
 
+/** A path naming more than one thing: a glob, or a trailing separator. */
+function pathTargetsMany(op: MCPOperation): boolean {
+  const p = String(op.params['path'] ?? op.params['filePath'] ?? op.params['file'] ?? '');
+  return p.includes('*') || p.includes('?') || /[\\/]$/.test(p);
+}
+
+/** Removing a directory, or a set of files, rather than one named file. */
+function deletesManyFiles(op: MCPOperation): boolean {
+  const isFs = op.tool === 'filesystem' || op.tool === 'fs';
+  if (isFs) {
+    const m = op.method.toLowerCase();
+    const removes = /(delete|remove|unlink|rmdir|\brm\b)/.test(m);
+    if (removes && /(dir|directory|folder|tree|recursive|all)/.test(m)) return true;
+    if (removes && pathTargetsMany(op)) return true;
+    return false;
+  }
+  // Through a shell: `rm -r`, `rm -rf`, `rm --recursive`.
+  const cmd = String(op.params['command'] ?? op.params['cmd'] ?? '');
+  return /\brm\s+(-[a-z]*r[a-z]*\b|--recursive\b)/i.test(cmd);
+}
+
+/** Commands no checkpoint can undo — the disk itself is gone. */
+function isUnrecoverableCommand(op: MCPOperation): boolean {
+  const cmd = String(op.params['command'] ?? op.params['cmd'] ?? '');
+  if (!cmd) return false;
+  return /\bmkfs(\.[a-z0-9]+)?\s+\S/i.test(cmd)          // mkfs.ext4 /dev/sda1
+    || /\bdd\b[^\n]*\bof=\/dev\//i.test(cmd)             // dd of=/dev/sda
+    || /\bshred\b\s+-\S*\s*\S/i.test(cmd)                // shred -u file
+    || /[>]\s*\/dev\/(sd|nvme|disk|hd)/i.test(cmd)        // echo x > /dev/sda
+    || /\bmkswap\b|\bfdisk\b[^\n]*--wipe|\bwipefs\b/i.test(cmd);
+}
+
 /** Returns true if the operation is from any AgentsGate database MCP server. */
 /** Tools that run arbitrary commands, as opposed to merely having an `execute` method. */
 function isShellTool(tool: string): boolean {
@@ -264,6 +296,24 @@ function isDbTool(tool: string): boolean {
 
 const L1_RULES: StaticRule[] = [
   // ── Destructive filesystem ops ──────────────────────────────────────────
+  {
+    id: 'L1_DELETE_TREE',
+    score: 0.95,
+    category: 'bulk_delete',
+    description: 'Removes a directory or a set of files at once — many things in one call',
+    // Deleting one file and deleting a tree used to be the same rule, so the
+    // filesystem had no equivalent of the database's "DELETE with no WHERE".
+    matches: op => deletesManyFiles(op),
+  },
+  {
+    id: 'L1_DESTRUCTIVE_COMMAND',
+    score: 0.98,
+    category: 'destructive',
+    description: 'Command with no undo — filesystem creation, raw device write, secure erase',
+    // Distinguished from `rm -rf` on purpose: a checkpoint can restore files,
+    // and nothing can restore an overwritten device.
+    matches: op => isUnrecoverableCommand(op),
+  },
   {
     id: 'L1_DELETE_FILE',
     score: 0.9,

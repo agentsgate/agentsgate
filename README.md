@@ -302,7 +302,8 @@ effect on the running proxy immediately — no restart — and is written back t
 
 | | `minimal` | **`balanced`** (default) | `strict` |
 |---|---|---|---|
-| Wipe a table, delete every row | block | block | block |
+| Wipe a table, `mkfs`, `dd` onto a device | block | block | block |
+| Delete a directory, `rm -rf`, a wildcard | allow | **approval** | block |
 | Multi-statement SQL | block | block | block |
 | Keys and secrets (`.env`, `.pem`) | allow | **block** | block |
 | Read personal data | allow | allow | **approval** |
@@ -320,6 +321,8 @@ What that means in practice:
 git status              allow     allow      approval
 write a file            allow     allow      allow
 delete a file           allow     allow      approval
+delete a directory      allow     approval   BLOCK
+rm -rf node_modules     allow     approval   BLOCK
 write to .env           allow     BLOCK      BLOCK
 UPDATE ... WHERE id=1   allow     allow      allow
 SELECT * FROM users     allow     allow      approval
