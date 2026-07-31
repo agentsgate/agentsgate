@@ -4,6 +4,7 @@ import { MCPProxy, createPipeline } from '../modules/m1-proxy/index.js';
 import { MCPStdioProxy } from '../modules/m1-proxy/stdio.js';
 import { createApprovalResolver } from './approval-resolver.js';
 import { getProtectionLevel, DEFAULT_PROTECTION_LEVEL } from '../protection-levels.js';
+import { saveConfigProtectionLevel } from './level-cmd.js';
 import { StateStore } from '../modules/m2-store/index.js';
 import { OperationLogger } from '../modules/m3-logger/index.js';
 import { CheckpointEngine } from '../modules/m4-checkpoint/index.js';
@@ -146,7 +147,9 @@ export async function cmdStart(args: string[]): Promise<void> {
     onExpire: (a) => onApprovalExpire?.(a),
   });
   const approvalWaitMs = config.approvals?.waitTimeoutMs ?? 60_000;
-  const protectionLevel = getProtectionLevel(config.protection?.level ?? DEFAULT_PROTECTION_LEVEL);
+  // Mutable so the dashboard can change it without a restart. The pipeline
+  // reads it per operation rather than capturing it once.
+  let protectionLevel = getProtectionLevel(config.protection?.level ?? DEFAULT_PROTECTION_LEVEL);
   await approvalQueue.initialize();
 
   const rateLimiter = config.rateLimit?.enabled
@@ -161,6 +164,13 @@ export async function cmdStart(args: string[]): Promise<void> {
 
   const dashboard = new DashboardAPI(store, {
     grantTtlMs: config.approvals?.grantTtlMs,
+    getProtectionLevel: () => protectionLevel,
+    setProtectionLevel: async (name) => {
+      protectionLevel = getProtectionLevel(name);
+      // Persist too, so the choice survives a restart. A level that silently
+      // reverts is worse than one that cannot be changed.
+      await saveConfigProtectionLevel(configPath, name);
+    },
     queue: approvalQueue,
     intelligenceEngine,
     rollbackEngine: rollback,
@@ -189,7 +199,7 @@ export async function cmdStart(args: string[]): Promise<void> {
       intelligenceEngine,
       approvalQueue,
       grantStore: store,
-      protectionLevel,
+      protectionLevel: () => protectionLevel,
       telemetry,
       rateLimiter,
       policy: policy.rules.length > 0 ? policy : undefined,

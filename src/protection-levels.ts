@@ -68,7 +68,7 @@ const LEVELS: Record<ProtectionLevelName, ProtectionLevel> = {
    */
   balanced: {
     name: 'balanced',
-    summary: 'Destruction and credentials are stopped; deletions need a yes. Ordinary work runs.',
+    summary: 'Wholesale destruction and credentials are stopped. Ordinary work runs.',
     categories: {
       destructive: 'block',
       injection: 'block',
@@ -78,7 +78,10 @@ const LEVELS: Record<ProtectionLevelName, ProtectionLevel> = {
       outbound_delete: 'require_approval',
       write_create: 'allow',
       write_update: 'allow',
-      write_delete: 'require_approval',
+      // A file or a row, not a table. Checkpoints cover it, so asking every
+      // time costs more attention than it buys — the deletions worth stopping
+      // are wholesale, and those are `destructive`.
+      write_delete: 'allow',
       exec: 'allow',
       read: 'allow',
     },

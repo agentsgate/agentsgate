@@ -59,7 +59,7 @@ describe('the level table', () => {
   it('takes the strictest category when several fire', () => {
     const strict = getProtectionLevel('balanced')!;
     expect(resolveLevelAction(strict, ['write_update', 'credential'])).toBe('block');
-    expect(resolveLevelAction(strict, ['read', 'write_delete'])).toBe('require_approval');
+    expect(resolveLevelAction(strict, ['read', 'outbound_delete'])).toBe('require_approval');
     expect(resolveLevelAction(strict, ['read'])).toBe('allow');
   });
 
@@ -94,9 +94,12 @@ describe('balanced — the default', () => {
     expect((await run(CASES.envWrite)).action).toBe('block');
   });
 
-  it('asks before deleting', async () => {
-    expect((await run(CASES.deleteFile)).action).toBe('require_approval');
+  it('asks before deleting something outside, where there is no undo', async () => {
     expect((await run(CASES.deleteMail)).action).toBe('require_approval');
+  });
+
+  it('does not ask before deleting a file — a checkpoint covers that', async () => {
+    expect((await run(CASES.deleteFile)).action).toBe('allow');
   });
 
   it('sends without asking', async () => {
