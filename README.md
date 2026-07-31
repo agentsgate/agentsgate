@@ -5,23 +5,82 @@
 [![Node](https://img.shields.io/node/v/agentsgate.svg)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**AI Agent I/O Tracking & Rollback System — MCP Proxy Gateway**
+**Undo for AI agents.** A local proxy that snapshots what your coding agent is
+about to touch, so a bad edit or a wrong `DELETE` is one command away from being
+undone — and stops the things that no snapshot can bring back.
 
-> **Status: 0.1.3.** The proxy, risk scoring, checkpoints and rollback are
-> covered by 7,428 tests, but the API surface should be treated as unstable
-> until 1.0 — command flags and config keys may still change. Read
-> [SECURITY.md](SECURITY.md) before exposing anything beyond loopback, and
-> `agentsgate level` before assuming what the defaults stop.
+> **Status: 0.1.3.** Covered by 7,428 tests, but treat the API surface as
+> unstable until 1.0 — command flags and config keys may still change.
 
-AgentsGate sits between AI agents (Claude, GPT, etc.) and the MCP tools they call. Every tool call is intercepted, risk-scored, checkpointed, and optionally paused for human approval before execution. If an agent does something destructive, you can roll back in seconds.
+![A coding agent tries to delete .env and is blocked; a file write gets through and silently removes a JWT check; agentsgate checkpoints and rollback put it back](docs/assets/agentsgate-demo.gif)
 
-![How AgentsGate decides: risk rules produce a score and a category, a protection level says what to do with that category, and policy rules override it case by case](docs/assets/agentsgate-pipeline.png)
+## What it undoes, and what it stops instead
 
-Two stages decide the verdict. The **protection level** is one broad setting
-covering every kind of operation — `agentsgate level` shows what it stops.
-**Policy rules** are your exceptions on top, and can tighten or loosen it.
-Everything is logged either way, and anything risky is checkpointed first so it
-can be rolled back.
+Not everything can be undone, so AgentsGate does two different jobs.
+
+| What the agent touches | AgentsGate's answer |
+|---|---|
+| **Local files** | Snapshotted before the operation. `agentsgate rollback <id>` restores them exactly. |
+| **Databases** — SQLite, PostgreSQL, MySQL | The affected table is copied before an `INSERT`, `UPDATE`, `DELETE` or DDL. Restored row for row. |
+| **Shell commands** | **No undo exists.** AgentsGate sees the command string, not the files it went on to touch — so there is nothing to snapshot. Destructive ones are refused or held *before* they run. |
+| **Outbound sends** — email, Slack, calendar | Cannot be recalled. Stopped beforehand, or not at all. |
+
+That split is the design. Where a checkpoint can put things back, AgentsGate
+gets out of the way and lets the agent work. Where nothing can, it asks you
+first — which is why `rm -rf` waits for a yes while deleting one file does not.
+
+## Scope — what this is not
+
+AgentsGate is a **local, single-operator tool**: it protects you from your own
+agent on your own machine. It is **not a network security boundary**, not a
+multi-tenant gateway, and not an authentication layer. The proxy transport has
+no authentication at all, which is safe only because everything binds to
+loopback by default. If you move it off loopback, that is on you — see
+[Security model](#security-model--read-this-first) below.
+
+## Try it in thirty seconds
+
+Watch it refuse to overwrite a credential file, without installing anything or
+touching your Claude Desktop config:
+
+```bash
+mkdir -p /tmp/agentsgate-demo && cd /tmp/agentsgate-demo && echo 'SECRET=keep-me' > .env
+
+CALL='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"write_file","arguments":{"path":"'"$PWD"'/.env","content":"HACKED"}}}'
+
+printf '%s\n' "$CALL" \
+  | npx -y agentsgate proxy -- npx -y @modelcontextprotocol/server-filesystem "$PWD"
+```
+
+```
+[agentsgate] BLOCK  90%  write_file
+
+{"error":{"message":"AgentsGate blocked: Risk score 0.90 meets or exceeds block threshold (0.7)",
+          "data":{"riskScore":0.9,"reasons":["Triggered rule: L1_SENSITIVE_PATH_WRITE", ...]}}}
+```
+
+Your `.env` is untouched. To see what else is stopped, and why:
+
+```bash
+npx -y agentsgate level
+```
+
+Then wire up your agent for real:
+
+```bash
+npm install -g agentsgate      # inject writes `agentsgate` into the MCP config,
+agentsgate inject              # so this step needs a global install
+agentsgate start               # proxy on 4000, dashboard on 4001
+```
+
+## How a decision is made
+
+![Risk rules produce a score and a category; a protection level says what to do with that category; policy rules override it case by case](docs/assets/agentsgate-pipeline.png)
+
+Two stages. The **protection level** is one broad setting covering every kind of
+operation — `agentsgate level` shows what it stops and why. **Policy rules** are
+your exceptions on top, and can tighten *or* loosen it. Everything is logged
+either way, and anything risky is checkpointed first.
 
 ---
 
