@@ -49,6 +49,7 @@ docs/**
 !docs/**/*.pdf
 !docs/assets/*.png
 !docs/assets/*.svg
+!docs/assets/*.gif
 
 # Coverage output
 coverage/
