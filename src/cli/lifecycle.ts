@@ -29,6 +29,22 @@ import { AGENTSGATE_VERSION } from '../version.js';
 
 // ── Commands ──────────────────────────────────────────────────────────────────
 
+/**
+ * How many MCP servers are currently routed through AgentsGate. Zero means
+ * nothing will reach the proxy, however long it runs.
+ */
+async function countInjectedServers(): Promise<number> {
+  try {
+    const { status } = await import('../utils/claude-desktop-injector.js');
+    const servers = await status();
+    return servers.filter(entry => entry.injected).length;
+  } catch {
+    // No Claude Desktop config, or an unreadable one — treat as "not set up",
+    // which is the case where the hint is most useful.
+    return 0;
+  }
+}
+
 export async function cmdStart(args: string[]): Promise<void> {
   // ── Already-running check (parent process only, not the daemon itself) ──
   if (!hasFlag(args, 'daemon')) {
@@ -72,10 +88,17 @@ export async function cmdStart(args: string[]): Promise<void> {
       let settled = false;
       const once = () => { if (!settled) { settled = true; done(); } };
 
+      // Wait for the whole banner, not the first chunk of it. Resolving on
+      // "AgentsGate v" tore the pipes down after line one, so the reader was
+      // told the daemon had started and never told where the dashboard was —
+      // six of seven lines went to a destroyed pipe. `Run \`agentsgate stop\``
+      // is the last line the child prints.
+      let seen = '';
       child.stdout?.on('data', (chunk: Buffer) => {
         const text = chunk.toString();
         process.stdout.write(text);
-        if (text.includes('AgentsGate v')) once();
+        seen += text;
+        if (seen.includes('agentsgate stop')) once();
       });
       child.stderr?.on('data', (chunk: Buffer) => process.stderr.write(chunk));
       child.on('exit', once);
@@ -310,6 +333,16 @@ export async function cmdStart(args: string[]): Promise<void> {
   if (config.webhook?.url) console.log(`  Webhook:   ${config.webhook.url}`);
   if (rateLimiter) console.log(`  RateLimit: ${config.rateLimit!.maxOpsPerMinute} ops/min`);
   if (policy.rules.length > 0) console.log(`  Policy:    ${policy.rules.length} custom rule(s)`);
+  // Nothing flows through the proxy until an MCP client is pointed at it, so a
+  // fresh install lands on an empty dashboard with no indication of why. Say
+  // what the next step is rather than leaving it to be worked out.
+  const injected = await countInjectedServers();
+  if (injected === 0) {
+    console.log('');
+    console.log('  No MCP client is routed through AgentsGate yet, so the dashboard is empty.');
+    console.log('  Next:  agentsgate inject      (close Claude Desktop first, then reopen it)');
+    console.log('         agentsgate level       to see what will be stopped, and why');
+  }
   console.log('Run `agentsgate stop` to stop.\n');
 
   const shutdown = new GracefulShutdown({
