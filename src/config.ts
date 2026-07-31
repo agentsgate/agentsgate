@@ -196,21 +196,23 @@ export async function loadConfig(configPath?: string): Promise<AgentsGateConfig>
     // No config file — use defaults
   }
 
-  // Shallow merge top-level sections; deep merge proxy + intervention
+  // Everything the file declares, with defaults filled in underneath.
+  //
+  // This used to rebuild the object from a written-out list of sections, which
+  // meant any section added later was read off disk and silently discarded:
+  // `protection.level` never reached the proxy, so `agentsgate level strict`
+  // wrote the file and changed nothing, and `approvals.waitTimeoutMs` and
+  // `grantTtlMs` were inert. Spreading `parsed` means the next section added
+  // works without anyone having to remember this function exists.
   return {
+    ...parsed,
     proxy: { ...DEFAULT_CONFIG.proxy, ...parsed.proxy },
     intervention: { ...DEFAULT_CONFIG.intervention, ...parsed.intervention },
-    webhook: parsed.webhook,
     approvals: {
+      ...parsed.approvals,
       maxAgeMs: parsed.approvals?.maxAgeMs ?? DEFAULT_APPROVAL_MAX_AGE_MS,
     },
-    telemetry: parsed.telemetry,
-    intelligence: parsed.intelligence,
-    rateLimit: parsed.rateLimit,
-    logs: parsed.logs,
-    dashboard: parsed.dashboard,
-    audit: parsed.audit,
-    team: parsed.team,
+    protection: { ...DEFAULT_CONFIG.protection, ...parsed.protection },
   };
 }
 

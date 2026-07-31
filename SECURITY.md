@@ -24,6 +24,34 @@ Critical/High severity issues.
 
 ---
 
+## Protection levels and what they assume
+
+The default protection level is `balanced`. It refuses wholesale destruction
+and writes to credential files, and lets ordinary work through — including
+shell commands and reading tables whose names sound sensitive.
+
+That is a deliberate trade for the common case, one person keeping an agent
+away from their own project. **It is not a data-protection posture.** If the
+data is not only yours, set `strict`, which holds personal-data reads, outbound
+sends, shell commands and deletions for approval:
+
+```bash
+agentsgate level strict
+```
+
+Two things to know either way:
+
+- **A level is not a sandbox.** It decides what AgentsGate refuses to forward.
+  An agent that reaches a tool by some other route is not covered — see the
+  trust model below.
+- **Policy rules override the level.** A rule that allows something the level
+  would stop wins, so audit `policy.json` alongside the level.
+
+Changing the level over the dashboard requires the `admin` role, and the choice
+is written back to `config.json`.
+
+---
+
 ## Threat model — read this before deploying
 
 AgentsGate is a **local, single-operator security tool**. It sits between an AI

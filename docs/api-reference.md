@@ -54,6 +54,53 @@ Returns `503` if config was not exposed at startup.
 
 ---
 
+### GET /protection
+
+The protection level in force, and what it does with each category of
+operation. See [policy-guide.md](policy-guide.md) for what the categories mean.
+
+**Response**
+```json
+{
+  "level": "balanced",
+  "summary": "Wholesale destruction and credentials are stopped. Ordinary work runs.",
+  "categories": {
+    "destructive": "block",
+    "credential": "block",
+    "outbound_delete": "require_approval",
+    "write_update": "allow",
+    "read": "allow"
+  },
+  "available": ["minimal", "balanced", "strict"],
+  "editable": true
+}
+```
+
+`level` is `null` when none is configured, in which case the thresholds alone
+decide. `editable` is false when the server was started without a way to change
+it. Returns `503` if no level was supplied at startup.
+
+---
+
+### POST /protection
+
+Change the level. **Requires the `admin` role.**
+
+Takes effect on the running proxy immediately — the level is resolved per
+operation — and is written back to `config.json`, so it survives a restart.
+
+**Request**
+```json
+{ "level": "strict" }
+```
+
+**Response** — the level now in force, in the same shape as `GET /protection`.
+
+Returns `400` for a name that is not one of `available`, and `503` when the
+server has no way to change it.
+
+---
+
 ### GET /metrics
 
 Prometheus text exposition format. Returns counters for total operations, blocked operations, approvals, and checkpoints.

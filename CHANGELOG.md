@@ -58,6 +58,20 @@
 
 ### Fixed
 
+- **`loadConfig` dropped whole sections of the config file.** It rebuilt the
+  object from a written-out list of keys, so anything added afterwards was read
+  off disk and discarded with the default silently taking its place. Found
+  while auditing this release: `protection.level` never reached the proxy, so
+  `agentsgate level strict` wrote the file and changed nothing;
+  `approvals.waitTimeoutMs`, `grantTtlMs` and `holdHttpRequests` were inert for
+  the same reason. This is the same defect fixed in `loadPolicy` this release —
+  listing keys by name is the bug — so the config is now spread rather than
+  transcribed, and a test walks the whole document instead of the keys someone
+  remembered.
+- **The dashboard header said `v0.5`**, hardcoded, while the package was
+  0.1.x. It reads the shared version constant now, like the CLI banner and
+  `/health`.
+
 - **`L1_EXECUTE_COMMAND` no longer fires on a database write.** It matched the
   method name alone, and the database MCP servers call their write method
   `execute` — so a one-row `UPDATE ... WHERE id = 1` was scored as arbitrary

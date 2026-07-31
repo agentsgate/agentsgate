@@ -1,3 +1,4 @@
+import { AGENTSGATE_VERSION } from '../../version.js';
 // ── Web Dashboard HTML ────────────────────────────────────────────────────────
 
 export const DASHBOARD_HTML = `<!DOCTYPE html>
@@ -209,7 +210,7 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
 <header>
   <div class="status-dot" id="dot"></div>
   <h1>AgentsGate</h1>
-  <span class="badge">v0.5</span>
+  <span class="badge">v${AGENTSGATE_VERSION}</span>
   <div id="level-switch" class="level-switch" title="What AgentsGate stops. Policy rules override this."></div>
   <span id="last-updated" style="margin-left:auto;font-size:.72rem;color:var(--text-faint)"></span>
   <button id="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light theme">🌙</button>
