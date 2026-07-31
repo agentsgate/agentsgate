@@ -92,17 +92,24 @@ For the full threat model, residual risks, and a deployment checklist, see
 - Checkpoint diff view before restoring
 - Rollback preview (dry-run before committing restore)
 
-**Policy System**
+**Policy System** (see [docs/policy-guide.md](docs/policy-guide.md))
 - Custom policy rules loaded from `~/.agentsgate/policy.json`
-- Per-rule match on tool, method, agentId, pathPattern, and tags
+- Per-rule match on tool, method, agentId, pathPattern, params, and tags —
+  exact strings, or `/regex/flags`
 - Rule actions: `allow`, `block`, `require_approval`, or score override
 - Agent allowlist / denylist
 - Per-agent tool allowlist / denylist
 - L1 rule muting and score overrides
+- Hot reload with `--policy=path`; a file that does not parse is ignored and the
+  running policy stays in force
+- Presets — `agentsgate policy preset apply strict|permissive|readonly`
 - Live policy stats via the dashboard
 
 **Approval Queue**
-- Pending operations pause at the proxy until approved or denied
+- Operations are held at the stdio proxy until approved or denied — the tool is
+  not called before someone answers, and no answer is a denial
+- On the HTTP proxy, approval leaves a one-time grant the agent's retry spends;
+  `approvals.holdHttpRequests` makes it wait instead
 - Webhook notifications (with retry) on enqueue
 - Slack Incoming Webhook integration
 - Escalation webhooks for stale approvals
@@ -247,6 +254,10 @@ Operations are scored 0.0 (safe) → 1.0 (extremely risky) using three layers:
 
 ### L1 Rules
 
+Thirty rules ship built in. A representative sample follows —
+`agentsgate policy list` prints them all, and
+[docs/policy-guide.md](docs/policy-guide.md) covers muting and re-scoring them.
+
 | Rule ID | Trigger | Default Score |
 |---------|---------|---------------|
 | `L1_DELETE_FILE` | `delete_file`, `unlink`, `rm` on filesystem tools | 0.90 |
@@ -257,6 +268,21 @@ Operations are scored 0.0 (safe) → 1.0 (extremely risky) using three layers:
 | `L1_GIT_FORCE_PUSH` | `force`/`reset`/`rebase` on github/git tools | 0.85 |
 | `L1_OVERWRITE_FILE` | `write_file`, `overwrite`, `create` on filesystem | 0.65 |
 | `L1_READ_ONLY` | `read_*`, `list_*`, `get_*`, `describe_*`, etc. | 0.05 |
+| `L1_SENSITIVE_FILE_TYPE` | Write to `.pem`, `.key`, `.env`, `.crt` | 0.75 |
+| `L1_DB_DROP` | `DROP TABLE` / `DATABASE` / `INDEX` | 1.00 |
+| `L1_DB_DELETE_NO_WHERE` | `DELETE` with no `WHERE` — every row | 0.90 |
+| `L1_DB_EXFIL` | `SELECT` naming a sensitive table or column | 0.60 |
+| `L1_DB_EXECUTE` | `INSERT` / `UPDATE` / `DELETE` with a `WHERE` | 0.30 |
+| `L1_DB_READ` | `SELECT`, list tables, describe | 0.05 |
+
+Two things about `L1_DB_EXFIL` that are easy to trip over:
+
+- **Counting is exempt.** `SELECT count(*) FROM users` reveals a number and no
+  column values, so it scores 0.05. Only `count()` is exempt — `max(password)`
+  is the largest password verbatim, `group_concat(email)` returns every row in
+  one string, and `sum(balance) WHERE id = 42` is one person's balance.
+- **Singular and plural both count.** `user`, `users`, `public."User"`,
+  `app_user` and `user_accounts` all match; a *column* named `user_id` does not.
 
 ### Intervention thresholds (default)
 
