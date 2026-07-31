@@ -296,6 +296,10 @@ agentsgate level              # what is stopped right now, and why
 agentsgate level minimal      # switch
 ```
 
+The dashboard has the same switch in its header, and changing it there takes
+effect on the running proxy immediately — no restart — and is written back to
+`config.json` so it survives one.
+
 | | `minimal` | **`balanced`** (default) | `strict` |
 |---|---|---|---|
 | Wipe a table, delete every row | block | block | block |
@@ -304,7 +308,7 @@ agentsgate level minimal      # switch
 | Read personal data | allow | allow | **approval** |
 | Send mail / messages | allow | allow | **approval** |
 | Delete mail / messages | allow | **approval** | block |
-| Delete a file or record | allow | **approval** | approval |
+| Delete a file or record | allow | allow | **approval** |
 | Add or change a file or record | allow | allow | allow |
 | Run a shell command | allow | allow | **approval** |
 | Read anything | allow | allow | allow |
@@ -315,7 +319,7 @@ What that means in practice:
                         minimal   balanced   strict
 git status              allow     allow      approval
 write a file            allow     allow      allow
-delete a file           allow     approval   approval
+delete a file           allow     allow      approval
 write to .env           allow     BLOCK      BLOCK
 UPDATE ... WHERE id=1   allow     allow      allow
 SELECT * FROM users     allow     allow      approval

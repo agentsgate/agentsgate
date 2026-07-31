@@ -163,6 +163,16 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
   #dialog h3 { font-size: 1rem; margin-bottom: 10px; color: var(--text-head); }
   #dialog p  { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; }
   #dialog .btns { display: flex; justify-content: flex-end; gap: 8px; }
+  .level-switch { display: flex; align-items: center; gap: 6px; margin-left: 16px; }
+  .level-switch .lbl { font-size: .68rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
+  .level-switch .opts { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .level-switch button { background: none; border: none; padding: 3px 10px; font-size: .74rem; cursor: pointer;
+    color: var(--text-muted); font-weight: 500; transition: background .15s, color .15s; }
+  .level-switch button + button { border-left: 1px solid var(--border); }
+  .level-switch button:hover:not(:disabled) { background: var(--border); color: var(--text); }
+  .level-switch button.on { background: var(--accent, #3b82f6); color: #fff; }
+  .level-switch button:disabled { cursor: default; opacity: .55; }
+  .level-summary { font-size: .68rem; color: var(--text-faint); max-width: 26rem; }
   .tabs { display: flex; gap: 4px; padding: 8px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
   .tab-btn { background: none; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; color: var(--text-muted); font-size: 0.83rem; font-weight: 500; transition: background 0.15s; }
   .tab-btn:hover { background: var(--border); color: var(--text); }
@@ -200,6 +210,7 @@ export const DASHBOARD_HTML = `<!DOCTYPE html>
   <div class="status-dot" id="dot"></div>
   <h1>AgentsGate</h1>
   <span class="badge">v0.5</span>
+  <div id="level-switch" class="level-switch" title="What AgentsGate stops. Policy rules override this."></div>
   <span id="last-updated" style="margin-left:auto;font-size:.72rem;color:var(--text-faint)"></span>
   <button id="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light theme">🌙</button>
 </header>
@@ -528,6 +539,45 @@ function applyTheme(mode) {
     const btn = document.getElementById('theme-toggle');
     if (btn) btn.textContent = '🌙';
   }
+}
+
+// ── Protection level ───────────────────────────────────────────────────────
+// Rendered from what the server reports rather than from an assumption, so the
+// control always shows what is actually in force — including the case where no
+// level is configured and the thresholds alone decide, where it shows nothing.
+async function loadProtection() {
+  const el = document.getElementById('level-switch');
+  if (!el) return;
+  try {
+    const r = await fetch(BASE + '/protection');
+    if (!r.ok) { el.innerHTML = ''; return; }
+    const p = await r.json();
+    if (!p.level) { el.innerHTML = ''; return; }
+    const opts = (p.available || []).map(function (name) {
+      const on = name === p.level ? ' class="on"' : '';
+      const dis = p.editable ? '' : ' disabled';
+      return '<button' + on + dis + ' onclick="setProtection(\'' + esc(name) + '\')">' + esc(name) + '</button>';
+    }).join('');
+    el.innerHTML = '<span class="lbl">level</span><span class="opts">' + opts + '</span>' +
+                   '<span class="level-summary">' + esc(p.summary || '') + '</span>';
+  } catch (e) { el.innerHTML = ''; }
+}
+
+async function setProtection(name) {
+  try {
+    const r = await fetch(BASE + '/protection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level: name })
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(function () { return {}; });
+      alert('Could not change level: ' + (e.error || r.status));
+      return;
+    }
+    await loadProtection();
+    loadAll();
+  } catch (e) { alert('Could not change level: ' + e.message); }
 }
 
 function toggleTheme() {
@@ -1226,6 +1276,7 @@ document.getElementById('btn-export-csv').addEventListener('click', () => {
 });
 
 loadAll();
+loadProtection();
 connectSSE();
 
 // ── Tab navigation ────────────────────────────────────────────────────────────

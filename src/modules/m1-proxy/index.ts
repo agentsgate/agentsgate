@@ -90,7 +90,7 @@ export interface PipelineModules {
    * score. See src/protection-levels.ts. Omitted, thresholds alone decide,
    * which is the behaviour every release before levels existed had.
    */
-  protectionLevel?: ProtectionLevel;
+  protectionLevel?: ProtectionLevel | (() => ProtectionLevel | undefined);
   /**
    * Optional — if present, every intercepted operation and its decision are
    * recorded in the telemetry buffer (anonymized, no PII).
@@ -449,18 +449,22 @@ export function createPipeline(modules: PipelineModules): ProxyConfig {
       //
       // Policy rules are applied after this and still win, so an operator's own
       // rule beats the level.
-      if (protectionLevel) {
+      // Resolved per operation, not captured once: the dashboard can change the
+      // level while the proxy is running, and a control that needs a restart
+      // to take effect is one people will not reach for.
+      const activeLevel = typeof protectionLevel === 'function' ? protectionLevel() : protectionLevel;
+      if (activeLevel) {
         const categories = (assessment.firedRuleDetails ?? [])
           .map(r => r.category)
           .filter((c): c is RuleCategory => typeof c === 'string');
-        const levelAction = resolveLevelAction(protectionLevel, categories);
+        const levelAction = resolveLevelAction(activeLevel, categories);
         if (levelAction !== null && levelAction !== decision.action) {
           decision = {
             ...decision,
             action: levelAction,
             reasons: [
               ...decision.reasons,
-              `Protection level "${protectionLevel.name}" → ${levelAction}`,
+              `Protection level "${activeLevel.name}" → ${levelAction}`,
             ],
           };
         }

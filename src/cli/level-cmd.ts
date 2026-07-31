@@ -35,6 +35,24 @@ const SHOWN: Record<CategoryAction, string> = {
   block: 'refused',
 };
 
+/**
+ * Write `protection.level` into the config file, leaving everything else alone.
+ * Shared with the dashboard so a level chosen there survives a restart.
+ */
+export async function saveConfigProtectionLevel(
+  configPath: string | undefined,
+  level: string
+): Promise<void> {
+  const file = configPath ?? path.join(os.homedir(), '.agentsgate', 'config.json');
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = JSON.parse(await fs.readFile(file, 'utf-8')) as Record<string, unknown>;
+  } catch { /* no config yet — write a fresh one */ }
+  existing['protection'] = { ...(existing['protection'] as object ?? {}), level };
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, JSON.stringify(existing, null, 2) + '\n');
+}
+
 export async function cmdLevel(args: string[]): Promise<void> {
   const configPath = parseFlag(args, 'config');
   const requested = args.find(a => !a.startsWith('--'));
@@ -45,14 +63,7 @@ export async function cmdLevel(args: string[]): Promise<void> {
       console.error(`Unknown level "${requested}". Available: ${PROTECTION_LEVEL_NAMES.join(', ')}`);
       process.exit(1);
     }
-    const file = configPath ?? path.join(os.homedir(), '.agentsgate', 'config.json');
-    let existing: Record<string, unknown> = {};
-    try {
-      existing = JSON.parse(await fs.readFile(file, 'utf-8')) as Record<string, unknown>;
-    } catch { /* no config yet — write a fresh one */ }
-    existing['protection'] = { ...(existing['protection'] as object ?? {}), level: level.name };
-    await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, JSON.stringify(existing, null, 2) + '\n');
+    await saveConfigProtectionLevel(configPath, level.name);
     console.log(`Protection level set to "${level.name}".`);
     console.log(`  ${level.summary}`);
     console.log('\nRestart the proxy for it to take effect: agentsgate stop && agentsgate start\n');

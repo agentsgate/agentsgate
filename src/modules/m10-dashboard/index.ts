@@ -15,6 +15,8 @@ import { json, html, prometheusText, clampInt } from './http-helpers.js';
 import { DASHBOARD_HTML } from './dashboard-html.js';
 import { redactUrlCredentials, assertSafeOutboundUrl } from '../../utils/url-safety.js';
 import { operationFingerprint } from '../../utils/operation-fingerprint.js';
+import { getProtectionLevel as lookupLevel, PROTECTION_LEVEL_NAMES } from '../../protection-levels.js';
+import type { ProtectionLevel, ProtectionLevelName } from '../../protection-levels.js';
 import { AGENTSGATE_VERSION } from '../../version.js';
 
 export { ApprovalQueue } from './approval-queue.js';
@@ -31,6 +33,12 @@ export interface DashboardOptions {
    * reviewed and the operation that eventually runs can differ.
    */
   grantTtlMs?: number;
+  /**
+   * Current protection level, and how to change it. Supplying both enables
+   * GET /protection and POST /protection.
+   */
+  getProtectionLevel?: () => ProtectionLevel | undefined;
+  setProtectionLevel?: (name: ProtectionLevelName) => Promise<void> | void;
   /** Approvals queue — enables GET /approvals/pending and POST /approvals/:id/approve|deny */
   queue?: ApprovalQueue;
   /** Risk intelligence engine — recordOutcome() called when approvals are resolved */
@@ -226,9 +234,13 @@ export class DashboardAPI {
 
   /** How long a one-shot approval grant stays spendable. */
   private readonly grantTtlMs: number;
+  private readonly getLevel?: () => ProtectionLevel | undefined;
+  private readonly setLevel?: (name: ProtectionLevelName) => Promise<void> | void;
 
   constructor(private readonly store: StateStore, options: DashboardOptions = {}) {
     this.queue = options.queue;
+    this.getLevel = options.getProtectionLevel;
+    this.setLevel = options.setProtectionLevel;
     this.grantTtlMs = options.grantTtlMs ?? 300_000;
     this.intelligenceEngine = options.intelligenceEngine;
     this.rollbackEngine = options.rollbackEngine;
@@ -417,6 +429,10 @@ export class DashboardAPI {
           return await this.listPendingApprovals(res);
         }
 
+        if (segments[0] === 'protection') {
+          return this.getProtection(res);
+        }
+
         if (segments[0] === 'rollback' && segments[1] && segments[2] === 'preview') {
           return await this.previewRollback(res, segments[1]);
         }
@@ -574,6 +590,12 @@ export class DashboardAPI {
             if (!hasRole('approver')) return json(res, 403, { error: 'Forbidden: approver role required' });
             return await this.resolveApproval(res, segments[1], verdict === 'approve');
           }
+        }
+
+        if (segments[0] === 'protection') {
+          // Changing what gets stopped is an administrative act.
+          if (!hasRole('admin')) return json(res, 403, { error: 'Forbidden: admin role required' });
+          return await this.postProtection(req, res);
         }
 
         if (segments[0] === 'rollback' && segments[1]) {
@@ -982,6 +1004,53 @@ export class DashboardAPI {
       expiresAt: new Date(a.queuedAt.getTime() + ttlMs).toISOString(),
     }));
     return json(res, 200, { data: enriched, count: enriched.length, ttlMs });
+  }
+
+  // ── Protection level ─────────────────────────────────────────────────────
+
+  private getProtection(res: http.ServerResponse): void {
+    if (!this.getLevel) return json(res, 503, { error: 'Protection level not configured' });
+    const level = this.getLevel();
+    return json(res, 200, {
+      level: level?.name ?? null,
+      summary: level?.summary ?? null,
+      categories: level?.categories ?? null,
+      available: PROTECTION_LEVEL_NAMES,
+      editable: Boolean(this.setLevel),
+    });
+  }
+
+  private async postProtection(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!this.setLevel) return json(res, 503, { error: 'Protection level is not editable' });
+    const MAX_BODY_BYTES = 4096;   // a level name, nothing more
+    let bytes = 0;
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
+      bytes += buf.length;
+      if (bytes > MAX_BODY_BYTES) return json(res, 413, { error: 'Request body too large' });
+      chunks.push(buf);
+    }
+    let body: { level?: unknown };
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { level?: unknown };
+    } catch {
+      return json(res, 400, { error: 'Invalid JSON body' });
+    }
+    const requested = typeof body.level === 'string' ? body.level : '';
+    const level = lookupLevel(requested);
+    if (!level) {
+      return json(res, 400, {
+        error: `Unknown level "${requested}"`,
+        available: PROTECTION_LEVEL_NAMES,
+      });
+    }
+    await this.setLevel(level.name);
+    return json(res, 200, {
+      level: level.name,
+      summary: level.summary,
+      categories: level.categories,
+    });
   }
 
   // ── Health handler ───────────────────────────────────────────────────────────

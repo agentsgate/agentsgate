@@ -20,10 +20,17 @@
   sets it, `protection.level` configures it.
 
   `minimal` stops only wholesale destruction. **`balanced`, the new default,**
-  adds credentials blocked and deletions held for approval, and leaves ordinary
-  work alone. `strict` adds personal-data reads and outbound sends. Adding and
-  updating run at every level; wiping a table is refused at every level. Policy
-  rules are applied after the level and still override it.
+  also refuses credentials and holds outbound deletions, and leaves ordinary
+  work alone — including deleting a file, which a checkpoint covers. `strict`
+  adds personal-data reads, outbound sends, shell commands and deletions.
+  Adding and updating run at every level; wiping a table is refused at every
+  level. Policy rules are applied after the level and still override it.
+
+  The dashboard carries the same switch in its header, over `GET`/`POST
+  /protection`. Changing it there applies to the running proxy at once — the
+  level is resolved per operation rather than captured at startup — and is
+  written back to `config.json`, because a level that silently reverts is worse
+  than one that cannot be changed. Setting it needs the `admin` role.
 
   This changes the default verdict for many operations. Anyone relying on the
   old behaviour can set `protection.level` to `strict`, or omit it and pin
