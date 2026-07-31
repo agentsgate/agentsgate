@@ -101,6 +101,45 @@ server has no way to change it.
 
 ---
 
+### GET /errors
+
+The last errors the proxy recorded, newest first. Kept in memory — 200 at most,
+and cleared on restart. Also on the CLI as `agentsgate errors`.
+
+`?limit=N` caps the number returned (default 50).
+
+**Response**
+```json
+{
+  "errors": [
+    {
+      "id": "3fa85f64-...",
+      "timestamp": "2026-07-30T10:05:31.123Z",
+      "module": "proxy",
+      "message": "Risk engine timeout",
+      "stack": "Error: Risk engine timeout\n    at ...",
+      "operationId": "op-abc123"
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+### GET /snapshots
+
+Database snapshots taken before destructive SQL, across every registered
+database MCP server.
+
+---
+
+### DELETE /snapshots/:id
+
+Delete one snapshot. **Requires the `admin` role.**
+
+---
+
 ### GET /metrics
 
 Prometheus text exposition format. Returns counters for total operations, blocked operations, approvals, and checkpoints.
