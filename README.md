@@ -9,7 +9,7 @@
 about to touch, so a bad edit or a wrong `DELETE` is one command away from being
 undone — and stops the things that no snapshot can bring back.
 
-> **Status: 0.1.3.** Covered by 7,428 tests, but treat the API surface as
+> **Status: 0.1.3.** Covered by 7,431 tests, but treat the API surface as
 > unstable until 1.0 — command flags and config keys may still change.
 
 ![A coding agent tries to delete .env and is blocked; a file write gets through and silently removes a JWT check; agentsgate checkpoints and rollback put it back](docs/assets/agentsgate-demo.gif)

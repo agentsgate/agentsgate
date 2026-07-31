@@ -9,4 +9,4 @@
  * Before this existed the CLI banner said 0.5.0, the OTLP exporter said 0.6.0
  * and `GET /health` said 0.4.0 — three numbers for one build.
  */
-export const AGENTSGATE_VERSION = '0.1.2';
+export const AGENTSGATE_VERSION = '0.1.3';
