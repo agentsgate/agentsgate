@@ -52,8 +52,13 @@ outright, or skip scoring altogether and force a decision.
   not run until you answer. It appears in `agentsgate approvals` and on the
   dashboard; `agentsgate approve <id>` releases it, `agentsgate deny <id>`
   refuses it. No answer within `approvals.waitTimeoutMs` (default 60s) is a
-  denial, and so is a dashboard that is not running. Under the HTTP proxy the
-  queue is a review log — the decision is recorded, the caller is not blocked.
+  denial, and so is a dashboard that is not running.
+
+  The HTTP proxy answers immediately instead of holding, and the operation does
+  not run. Approving leaves a one-time grant, so asking the agent to try the
+  same thing again lets that retry through — once, within
+  `approvals.grantTtlMs`. Set `approvals.holdHttpRequests: true` to make it wait
+  like the stdio proxy.
 - **block** — the operation is refused and the reason is recorded.
 
 Nothing is required to get started: with no policy file at all, the built-in

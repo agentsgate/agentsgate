@@ -14,6 +14,7 @@ import { ApprovalQueue } from './approval-queue.js';
 import { json, html, prometheusText, clampInt } from './http-helpers.js';
 import { DASHBOARD_HTML } from './dashboard-html.js';
 import { redactUrlCredentials, assertSafeOutboundUrl } from '../../utils/url-safety.js';
+import { operationFingerprint } from '../../utils/operation-fingerprint.js';
 import { AGENTSGATE_VERSION } from '../../version.js';
 
 export { ApprovalQueue } from './approval-queue.js';
@@ -22,6 +23,14 @@ export type { PendingApproval, ApprovalQueueOptions } from './approval-queue.js'
 // ── DashboardAPI ──────────────────────────────────────────────────────────────
 
 export interface DashboardOptions {
+  /**
+   * How long a one-shot approval grant stays spendable (default: 300000 = 5min).
+   *
+   * Kept short on purpose. The grant lets a retry run against whatever the
+   * state is *then*, so a long-lived grant means the operation an operator
+   * reviewed and the operation that eventually runs can differ.
+   */
+  grantTtlMs?: number;
   /** Approvals queue — enables GET /approvals/pending and POST /approvals/:id/approve|deny */
   queue?: ApprovalQueue;
   /** Risk intelligence engine — recordOutcome() called when approvals are resolved */
@@ -215,8 +224,12 @@ export class DashboardAPI {
     }
   }
 
+  /** How long a one-shot approval grant stays spendable. */
+  private readonly grantTtlMs: number;
+
   constructor(private readonly store: StateStore, options: DashboardOptions = {}) {
     this.queue = options.queue;
+    this.grantTtlMs = options.grantTtlMs ?? 300_000;
     this.intelligenceEngine = options.intelligenceEngine;
     this.rollbackEngine = options.rollbackEngine;
     this.telemetry = options.telemetry;
@@ -3335,6 +3348,21 @@ export class DashboardAPI {
     // The stdio proxy is blocked on this verdict in another process; make sure
     // it has landed in the database before we answer the approver.
     await this.queue.whenIdle();
+
+    // An HTTP caller was answered "needs approval" and has moved on — there is
+    // no held request to release. Leave a one-shot grant so that asking the
+    // agent to try again works, once, without permanently lowering the bar.
+    if (approved) {
+      try {
+        await this.store.createApprovalGrant(
+          operationFingerprint(item.operation),
+          item.operation.id,
+          new Date(Date.now() + this.grantTtlMs)
+        );
+      } catch (err) {
+        console.error('[Dashboard] could not record approval grant:', err);
+      }
+    }
 
     // Inform the intelligence engine so L2 scoring can learn from this outcome
     if (this.intelligenceEngine) {

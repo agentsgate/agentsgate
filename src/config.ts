@@ -64,6 +64,25 @@ export interface AgentsGateConfig {
      * left to receive the result.
      */
     waitTimeoutMs?: number;
+    /**
+     * How long a one-shot approval grant stays spendable (default: 300000 = 5min).
+     *
+     * Approving an operation whose caller has already been answered leaves a
+     * grant; asking the agent to try again spends it. Kept short because the
+     * retry runs against whatever the state is then, so a long-lived grant
+     * means what was reviewed and what runs can drift apart.
+     */
+    grantTtlMs?: number;
+    /**
+     * Hold the caller on the HTTP proxy while an operator answers, instead of
+     * replying "needs approval" immediately (default: false).
+     *
+     * Off by default because it keeps an HTTP request open for up to
+     * `waitTimeoutMs`, which reverse proxies and load balancers may cut. The
+     * stdio proxy always holds — it owns the transport and nothing in between
+     * can time it out.
+     */
+    holdHttpRequests?: boolean;
   };
   telemetry?: {
     /** HTTP endpoint for periodic telemetry export. */

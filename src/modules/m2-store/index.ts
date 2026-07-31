@@ -107,6 +107,17 @@ export class StateStore {
       );
       CREATE INDEX IF NOT EXISTS idx_pending_approvals_queued_at
         ON pending_approvals (queued_at DESC);
+
+      -- One-shot permission for a retry of an operation that was approved
+      -- after the caller had already been answered. Keyed by what the
+      -- operation is, not which request carried it.
+      CREATE TABLE IF NOT EXISTS approval_grants (
+        fingerprint  TEXT PRIMARY KEY,
+        operation_id TEXT NOT NULL,
+        created_at   TEXT NOT NULL,
+        expires_at   TEXT NOT NULL,
+        consumed_at  TEXT
+      );
     `);
 
     // Migration: add indexed columns to existing operation_logs tables that predate T403.
@@ -424,6 +435,50 @@ export class StateStore {
   async deletePendingApproval(id: string): Promise<void> {
     this.assertOpen();
     this.db!.prepare('DELETE FROM pending_approvals WHERE id = ?').run(id);
+  }
+
+  // ── Approval grants ──────────────────────────────────────────────────────
+
+  /**
+   * Permit one retry of this operation, until `expiresAt`.
+   *
+   * Replaces any existing grant for the same fingerprint: approving again after
+   * the first grant lapsed should work, and there is never a reason to hold two
+   * permissions for one request.
+   */
+  async createApprovalGrant(fingerprint: string, operationId: string, expiresAt: Date): Promise<void> {
+    this.assertOpen();
+    this.db!.prepare(`
+      INSERT OR REPLACE INTO approval_grants (fingerprint, operation_id, created_at, expires_at, consumed_at)
+      VALUES (?, ?, ?, ?, NULL)
+    `).run(fingerprint, operationId, new Date().toISOString(), expiresAt.toISOString());
+  }
+
+  /**
+   * Spend the grant for this operation, if there is a live one. True means the
+   * retry may proceed — and that the grant is now gone, so the next identical
+   * request needs its own approval.
+   *
+   * The check and the spend are one statement: two processes retrying at once
+   * must not both be told yes.
+   */
+  async consumeApprovalGrant(fingerprint: string): Promise<boolean> {
+    this.assertOpen();
+    const now = new Date().toISOString();
+    const result = this.db!.prepare(`
+      UPDATE approval_grants SET consumed_at = ?
+      WHERE fingerprint = ? AND consumed_at IS NULL AND expires_at > ?
+    `).run(now, fingerprint, now);
+    return result.changes > 0;
+  }
+
+  /** Drop spent and lapsed grants. Returns how many went. */
+  async pruneApprovalGrants(): Promise<number> {
+    this.assertOpen();
+    const result = this.db!.prepare(
+      'DELETE FROM approval_grants WHERE consumed_at IS NOT NULL OR expires_at <= ?'
+    ).run(new Date().toISOString());
+    return result.changes;
   }
 
   // ── Maintenance ───────────────────────────────────────────────────────────

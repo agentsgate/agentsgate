@@ -106,6 +106,31 @@
   does means it gives up and a later approval would run the tool with nobody
   left to receive the result.
 
+- **Approving now does something on the HTTP proxy too.** It never ran a
+  `require_approval` operation — that part was always safe — but it answers the
+  caller straight away, so there is no held request for an approval to release.
+  Approving cleared the queue entry and nothing else: the only route to getting
+  the work done was to lower the threshold, which permits the operation every
+  time rather than once.
+
+  Approving now leaves a **one-time grant**, and a retry of the same request
+  spends it. "Same" means same agent, tool, method and arguments — the retry
+  arrives with a new operation id, so the grant is keyed on a fingerprint of
+  what the operation *is*. It is good for one retry, expires after
+  `approvals.grantTtlMs` (default 5 minutes), and the check-and-spend is a
+  single statement so two concurrent retries cannot both be told yes.
+
+  `approvals.holdHttpRequests: true` opts into holding the caller instead, as
+  the stdio proxy does, so the original call carries the result. Off by default:
+  it keeps an HTTP request open for the length of the wait, which reverse
+  proxies and load balancers may cut.
+
+  Executing in the background after approval was considered and rejected. The
+  caller has already been answered, so the side effect would land with nobody
+  waiting for it; the parameters were built against state that has since moved;
+  and the agent may have retried or worked around it in the meantime. A grant
+  keeps execution synchronous with a live caller, which is where a gate belongs.
+
 
 - **A policy pattern written `/…/i` never matched.** Match values were treated
   as a regular expression only when they both started and ended with a slash, so

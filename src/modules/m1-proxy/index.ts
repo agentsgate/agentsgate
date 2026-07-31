@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { operationFingerprint } from '../../utils/operation-fingerprint.js';
 import type { MCPOperation, ProxyDecision, ExecutionResult, RiskAssessment } from '../../types/interfaces.js';
 import type { RiskScoringEngine } from '../m6-risk/index.js';
 import type { InterventionController } from '../m7-intervention/index.js';
@@ -32,6 +33,12 @@ export interface ProxyConfig {
    * Defaults to a no-op that returns success immediately.
    */
   forwardToTool?: (operation: MCPOperation) => Promise<ExecutionResult>;
+  /**
+   * Optional — hold a `require_approval` operation until this resolves, instead
+   * of answering the caller straight away. Approved forwards; anything else
+   * blocks. See `approvals.holdHttpRequests`.
+   */
+  awaitApproval?: (operation: MCPOperation, decision: ProxyDecision) => Promise<'approved' | 'denied'>;
   /**
    * Optional — retry configuration for `forwardToTool`.
    * When set, failed tool forwarding calls are retried with exponential back-off.
@@ -67,6 +74,15 @@ export interface PipelineModules {
    * are automatically added to this queue for human review.
    */
   approvalQueue?: ApprovalQueue;
+  /**
+   * Optional — where one-shot approval grants live. When an operator approves
+   * an operation whose caller has already been answered, the approval leaves a
+   * grant here; a retry of the same request spends it and is allowed through
+   * exactly once.
+   */
+  grantStore?: {
+    consumeApprovalGrant(fingerprint: string): Promise<boolean>;
+  };
   /**
    * Optional — if present, every intercepted operation and its decision are
    * recorded in the telemetry buffer (anonymized, no PII).
@@ -182,6 +198,7 @@ export function createPipeline(modules: PipelineModules): ProxyConfig {
     logger,
     intelligenceEngine,
     approvalQueue,
+    grantStore,
     telemetry,
     rateLimiter,
     velocityDetector,
@@ -448,6 +465,28 @@ export function createPipeline(modules: PipelineModules): ProxyConfig {
         decision = { ...decision, dryRun: true };
       }
 
+      // A retry of something already approved goes straight through.
+      //
+      // Approving an operation the caller has already been answered about
+      // cannot release anything, so approval leaves a one-shot grant instead.
+      // Spending it here is what makes "approve, then ask the agent again"
+      // work — without it the only way to get the work done is to lower the
+      // threshold, which permits it forever rather than once.
+      if (grantStore && decision.action === 'require_approval') {
+        const fingerprint = operationFingerprint(operation);
+        let granted = false;
+        try {
+          granted = await grantStore.consumeApprovalGrant(fingerprint);
+        } catch { /* no grant store, no grant — the approval stands */ }
+        if (granted) {
+          decision = {
+            ...decision,
+            action: 'allow',
+            reasons: [...decision.reasons, 'Approved by operator (one-time grant)'],
+          };
+        }
+      }
+
       // Queue for human review when approval is required
       if (approvalQueue && decision.action === 'require_approval') {
         approvalQueue.enqueue(operation, decision.riskScore, checkpointId);
@@ -489,11 +528,13 @@ export class MCPProxy {
   private server: http.Server | null = null;
   private readonly evaluateRisk: (op: MCPOperation) => Promise<ProxyDecision>;
   private readonly forwardToTool: (op: MCPOperation) => Promise<ExecutionResult>;
+  private readonly awaitApproval?: (op: MCPOperation, d: ProxyDecision) => Promise<'approved' | 'denied'>;
   private readonly forwardRetry?: ProxyConfig['forwardRetry'];
 
   constructor(config: ProxyConfig = {}) {
     this.evaluateRisk = config.evaluateRisk ?? defaultEvaluateRisk;
     this.forwardToTool = config.forwardToTool ?? defaultForwardToTool;
+    this.awaitApproval = config.awaitApproval;
     this.forwardRetry = config.forwardRetry;
   }
 
@@ -532,7 +573,24 @@ export class MCPProxy {
    * forwards the operation to the real tool.
    */
   async intercept(operation: MCPOperation): Promise<ProxyDecision> {
-    const decision = await this.evaluateRisk(operation);
+    let decision = await this.evaluateRisk(operation);
+
+    // Opt-in: hold the caller while an operator answers, the way the stdio
+    // proxy does. Off by default because it keeps an HTTP request open for the
+    // length of the wait, which reverse proxies and load balancers may cut.
+    // Without it the caller is answered immediately and a retry, once granted,
+    // is what carries the work out.
+    if (decision.action === 'require_approval' && this.awaitApproval) {
+      let verdict: 'approved' | 'denied' = 'denied';
+      try {
+        verdict = await this.awaitApproval(operation, decision);
+      } catch {
+        verdict = 'denied';   // unresolvable means unrun
+      }
+      decision = verdict === 'approved'
+        ? { ...decision, action: 'allow', reasons: [...decision.reasons, 'Approved by operator'] }
+        : { ...decision, action: 'block', reasons: [...decision.reasons, 'Approval denied or timed out'] };
+    }
 
     if (decision.action === 'allow') {
       await this.forwardWithRetry(operation);

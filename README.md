@@ -276,8 +276,16 @@ and on the dashboard; `agentsgate approve <id>` releases it, `agentsgate deny
 60s) is a denial, as is a dashboard that is not running — the proxy sits
 synchronously in the request path, so anything it cannot resolve, it refuses.
 
-Under the HTTP proxy the queue is a review log rather than a gate: the decision
-is recorded and the caller is not blocked.
+The HTTP proxy cannot hold the caller by default — it answers "needs approval"
+straight away, and the operation does not run. Approving leaves a **one-time
+grant**: ask the agent to try the same thing again and that retry goes through,
+once. The grant is for that exact request (same agent, tool, method and
+arguments) and lapses after `approvals.grantTtlMs` (default 5 minutes).
+
+Set `approvals.holdHttpRequests: true` to make the HTTP proxy wait like the
+stdio one instead, so the original call carries the result. It is off by default
+because it keeps an HTTP request open for the length of the wait, which reverse
+proxies and load balancers may cut.
 
 ---
 

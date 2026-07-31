@@ -144,6 +144,7 @@ export async function cmdStart(args: string[]): Promise<void> {
     maxAgeMs: config.approvals?.maxAgeMs,
     onExpire: (a) => onApprovalExpire?.(a),
   });
+  const approvalWaitMs = config.approvals?.waitTimeoutMs ?? 60_000;
   await approvalQueue.initialize();
 
   const rateLimiter = config.rateLimit?.enabled
@@ -157,6 +158,7 @@ export async function cmdStart(args: string[]): Promise<void> {
   const expiredSessions = new Set<string>();
 
   const dashboard = new DashboardAPI(store, {
+    grantTtlMs: config.approvals?.grantTtlMs,
     queue: approvalQueue,
     intelligenceEngine,
     rollbackEngine: rollback,
@@ -176,8 +178,7 @@ export async function cmdStart(args: string[]): Promise<void> {
     dashboard.notify('approval_expired', JSON.stringify({ id: a.id, operationId: a.operation.id }));
   };
 
-  const proxy = new MCPProxy(
-    createPipeline({
+  const proxyConfig = createPipeline({
       riskEngine,
       interventionController,
       checkpointEngine: checkpoints,
@@ -185,6 +186,7 @@ export async function cmdStart(args: string[]): Promise<void> {
       logger,
       intelligenceEngine,
       approvalQueue,
+      grantStore: store,
       telemetry,
       rateLimiter,
       policy: policy.rules.length > 0 ? policy : undefined,
@@ -205,8 +207,18 @@ export async function cmdStart(args: string[]): Promise<void> {
         }
         if (slackNotifier) void slackNotifier.notify(op, dec).catch(() => {});
       },
-    })
-  );
+  });
+
+  const proxy = new MCPProxy({
+    ...proxyConfig,
+    // Opt-in: block the caller while an operator answers, as stdio does.
+    // Off by default — this keeps an HTTP request open for the length of the
+    // wait. Left off, the caller is answered at once and the approval leaves a
+    // one-time grant that the agent's retry spends.
+    ...(config.approvals?.holdHttpRequests
+      ? { awaitApproval: createApprovalResolver({ store, timeoutMs: approvalWaitMs }) }
+      : {}),
+  });
 
   const bindHost = config.proxy.host ?? '127.0.0.1';
   const isLoopback = bindHost === '127.0.0.1' || bindHost === '::1' || bindHost === 'localhost';
