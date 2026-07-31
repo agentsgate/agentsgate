@@ -57,7 +57,7 @@ Verify the installation:
 agentsgate --version
 ```
 
-You should see output like `agentsgate v0.1.0`.
+You should see output like `AgentsGate v0.1.3` — the version prints on its own line.
 
 > **Tip:** If you get a "permission denied" error on macOS/Linux, prefix the command with `sudo`:
 > ```bash
@@ -153,7 +153,7 @@ With Claude Desktop open and connected, ask Claude to do something simple, like 
 | Command | What it does |
 |---------|-------------|
 | `agentsgate start` | Start the proxy and dashboard |
-| `agentsgate start --port 8080` | Start proxy on a custom port |
+| `agentsgate start 8080` | Start on a custom port (dashboard on 8081) |
 | `agentsgate status` | Show current status |
 | `agentsgate inject` | Configure Claude Desktop automatically |
 | `agentsgate eject` | Remove Claude Desktop configuration |
@@ -161,6 +161,36 @@ With Claude Desktop open and connected, ask Claude to do something simple, like 
 | `agentsgate report` | Generate a risk summary report |
 | `agentsgate config` | Show current configuration |
 | `agentsgate health` | Check dashboard health |
+| `agentsgate level` | Show what is being stopped, and change it |
+
+---
+
+## How much does it stop?
+
+Out of the box AgentsGate runs at the **`balanced`** protection level: it
+refuses anything that wipes data — `DROP TABLE`, a `DELETE` with no `WHERE` —
+and anything writing to a credential file such as `.env`, and stays out of the
+way otherwise. Writing code, running tests and editing rows all go through
+without a prompt.
+
+```bash
+agentsgate level                # see exactly what is stopped, and why
+```
+
+Two other levels:
+
+| Level | For |
+|-------|-----|
+| `minimal` | A scratch project. Only wholesale destruction is stopped. |
+| `balanced` | **Default.** Your own project, with real data in it. |
+| `strict` | Data that is not only yours — holds personal-data reads, outbound sends, shell commands and deletions for approval. |
+
+```bash
+agentsgate level strict
+```
+
+The dashboard has the same switch in its header, and changing it there takes
+effect immediately.
 
 ---
 
@@ -231,10 +261,12 @@ Add that directory to your PATH, or use `npx agentsgate` instead.
 
 ### Port already in use
 
-If port 4000 or 4001 is taken by another application, start AgentsGate on different ports:
+If port 4000 or 4001 is taken by another application, start AgentsGate on a
+different port. The dashboard is always the proxy port plus one, so this puts
+it on 4101 — there is no separate flag for it:
 
 ```bash
-agentsgate start --port 4100 --dashboard-port 4000
+agentsgate start 4100
 ```
 
 ### Claude Desktop does not connect
@@ -323,7 +355,7 @@ npm install -g agentsgate
 agentsgate --version
 ```
 
-`agentsgate v0.1.0`のような出力が表示されるはずです。
+`AgentsGate v0.1.3` のような出力が表示されます（バージョンのみが出力されます）。
 
 > **ヒント：** macOS/Linuxで「permission denied（権限エラー）」が出た場合は、コマンドの前に`sudo`を付けてください：
 > ```bash
@@ -419,7 +451,7 @@ Claude Desktopを開いた状態で、ファイルの読み取りやディレク
 | コマンド | 説明 |
 |---------|------|
 | `agentsgate start` | プロキシとダッシュボードを起動 |
-| `agentsgate start --port 8080` | カスタムポートでプロキシを起動 |
+| `agentsgate start 8080` | 別のポートで起動（ダッシュボードは 8081） |
 | `agentsgate status` | 現在のステータスを表示 |
 | `agentsgate inject` | Claude Desktopを自動設定 |
 | `agentsgate eject` | Claude Desktopの設定を削除 |
@@ -427,6 +459,34 @@ Claude Desktopを開いた状態で、ファイルの読み取りやディレク
 | `agentsgate report` | リスクサマリーレポートを生成 |
 | `agentsgate config` | 現在の設定を表示 |
 | `agentsgate health` | ダッシュボードの健全性を確認 |
+| `agentsgate level` | 何を止めているかを表示・変更 |
+
+---
+
+## どこまで止めるか
+
+既定の保護レベルは **`balanced`** です。データを消し飛ばすもの（`DROP TABLE`、
+`WHERE` 句のない `DELETE`）と、`.env` のような認証情報ファイルへの書き込みを拒否し、
+それ以外は邪魔をしません。コードを書く、テストを走らせる、行を更新する——
+いずれも確認を求められずに通ります。
+
+```bash
+agentsgate level                # 何が止まるのか、その理由を表示
+```
+
+他に 2 つあります。
+
+| レベル | 想定 |
+|--------|------|
+| `minimal` | 使い捨てのプロジェクト。全消し系だけを止めます |
+| `balanced` | **既定。** 実データの入った自分のプロジェクト |
+| `strict` | 自分だけのものではないデータ。個人情報の読み出し・外部への送信・シェル実行・削除を承認対象にします |
+
+```bash
+agentsgate level strict
+```
+
+ダッシュボードのヘッダにも同じ切り替えがあり、そちらで変更すると即座に反映されます。
 
 ---
 
@@ -497,10 +557,11 @@ npm bin -g    # グローバルバイナリのインストール先を表示
 
 ### ポートが使用中
 
-ポート4000または4001が他のアプリケーションで使用されている場合、別のポートでAgentsGateを起動します：
+ポート 4000 または 4001 が他のアプリケーションで使用されている場合は、別のポートで起動します。
+ダッシュボードは常にプロキシのポート +1 になるため、この例では 4101 です（個別に指定するオプションはありません）：
 
 ```bash
-agentsgate start --port 4100 --dashboard-port 4000
+agentsgate start 4100
 ```
 
 ### Claude Desktopが接続しない

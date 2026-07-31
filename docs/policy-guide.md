@@ -335,14 +335,14 @@ to deal with that, without writing a rule of your own.
 **Mute it.** The rule still runs, but contributes nothing to the score.
 
 ```json
-{ "mutedRules": ["L1_SENSITIVE_FILE_TYPE", "L1_LARGE_WRITE"] }
+{ "mutedRules": ["L1_SENSITIVE_FILE_TYPE", "L1_OVERWRITE_FILE"] }
 ```
 
 **Re-score it.** The rule still fires and still contributes — with your number
 instead of the built-in one.
 
 ```json
-{ "ruleOverrides": { "L1_DELETE_FILE": 0.5, "L1_EXEC_COMMAND": 0.9 } }
+{ "ruleOverrides": { "L1_DELETE_FILE": 0.5, "L1_EXECUTE_COMMAND": 0.9 } }
 ```
 
 Prefer re-scoring. Muting removes a signal entirely, so a genuinely dangerous

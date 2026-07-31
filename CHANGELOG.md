@@ -68,6 +68,22 @@
   listing keys by name is the bug — so the config is now spread rather than
   transcribed, and a test walks the whole document instead of the keys someone
   remembered.
+- **The guides under `docs/` had drifted.** Audited mechanically against the
+  source rather than by reading: `user-guide.md` carried five wrong L1 scores
+  and a dashboard on port 3000; `openclaw-user-guide.md` had thirteen
+  references to the pre-4000 ports; both named `agentsgate checkpoint list` and
+  `agentsgate circuit list`, neither of which exists. `installation-guide.md`
+  documented `--port 8080` and `--dashboard-port 4000` — the first works only
+  because a bare number is picked up positionally, and the second is not a flag
+  at all, so that example quietly put the dashboard somewhere the reader did
+  not ask for. The policy guide this release rewrote had itself carried over
+  two rule IDs that do not exist, `L1_LARGE_WRITE` and `L1_EXEC_COMMAND`, in
+  the muting examples — copied verbatim they would have done nothing.
+
+  `/errors` and `/snapshots` were undocumented and now appear in the API
+  reference. The user and installation guides gained the protection level, in
+  both languages, since without it they describe a product that blocks
+  `git status`.
 - **The dashboard header said `v0.5`**, hardcoded, while the package was
   0.1.x. It reads the shared version constant now, like the CLI banner and
   `/health`.

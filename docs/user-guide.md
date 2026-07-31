@@ -58,7 +58,46 @@ Every operation receives a **risk score** from 0.0 (completely safe) to 1.0 (ext
 | **L2** | Your personal agent history (Bayesian model) | After ≥ 10 outcomes per agent |
 | **L3** | Community risk database | Opt-in only |
 
+### Protection level
+
+A score is not enough on its own to say what should happen. `DROP TABLE` scores
+1.00 and `SELECT * FROM users` scores 0.60 — they differ in *kind*, not degree,
+so moving the bar until the SELECT passes also clears `DELETE FROM orders`
+(0.90). So every built-in rule carries a **category**, and the protection level
+says what to do with each.
+
+```bash
+agentsgate level              # what is stopped right now, and why
+agentsgate level strict       # change it
+```
+
+The dashboard has the same switch in its header; changing it there applies to
+the running proxy immediately.
+
+| | `minimal` | **`balanced`** (default) | `strict` |
+|---|---|---|---|
+| Wipe a table, delete every row | block | block | block |
+| Multi-statement SQL | block | block | block |
+| Keys and secrets (`.env`, `.pem`) | allow | **block** | block |
+| Read personal data | allow | allow | **approval** |
+| Send mail / messages | allow | allow | **approval** |
+| Delete mail / messages | allow | **approval** | block |
+| Delete a file or record | allow | allow | **approval** |
+| Add or change a file or record | allow | allow | allow |
+| Run a shell command | allow | allow | **approval** |
+| Read anything | allow | allow | allow |
+
+`balanced` is the default because the common case is one person keeping an agent
+from wrecking their own project: stop what cannot be undone, stay out of the way
+otherwise. Move to `strict` when the data is not only yours — that is the level
+that treats reading personal data as something a human should see first.
+
+**`balanced` is a convenience posture, not a data-protection one.** Shell
+commands run and tables named `users` can be read.
+
 ### Default intervention thresholds
+
+Where no built-in rule fires, the score falls through to these thresholds.
 
 | Score | What happens |
 |-------|-------------|
@@ -66,7 +105,8 @@ Every operation receives a **risk score** from 0.0 (completely safe) to 1.0 (ext
 | `0.30 – 0.69` | **Requires approval** — operation pauses, checkpoint saved, you are notified |
 | `≥ 0.70` | **Blocked** — operation rejected, reason logged |
 
-You can change these thresholds in your [policy file](#3-policy-system).
+You can change these thresholds in your [policy file](#3-policy-system). A
+policy rule is applied after the level and overrides it.
 
 ### Checkpoint
 
@@ -76,7 +116,7 @@ Before any operation that scores ≥ 0.30, AgentsGate automatically saves a **ch
 
 ## 2. Dashboard
 
-Open the dashboard at `http://localhost:3000` (or your configured dashboard port).
+Open the dashboard at `http://localhost:4001` (or your configured dashboard port).
 
 ### Operations tab
 
@@ -411,7 +451,7 @@ To change the default score for a built-in rule:
 |---------|-------------|---------------|
 | `L1_SLACK_SEND` | `send_message`, `post_message`, `reply` on `slack` tool | 0.70 |
 | `L1_SLACK_DELETE` | `delete_message`, `delete`, `remove` on `slack` tool | 0.80 |
-| `L1_SLACK_READ` | `list_*`, `get_*`, `read_*`, `search_*`, `history` on `slack` tool | 0.10 |
+| `L1_SLACK_READ` | `list_*`, `get_*`, `read_*`, `search_*`, `history` on `slack` tool | 0.05 |
 
 #### Gmail
 
@@ -419,8 +459,8 @@ To change the default score for a built-in rule:
 |---------|-------------|---------------|
 | `L1_GMAIL_SEND` | `send`, `reply`, `forward` on `gmail` tool | 0.90 |
 | `L1_GMAIL_DRAFT` | `draft`, `create`, `compose` (non-send) on `gmail` tool | 0.30 |
-| `L1_GMAIL_DELETE` | `delete`, `trash`, `remove` on `gmail` tool | 0.80 |
-| `L1_GMAIL_READ` | `list_*`, `get_*`, `read_*`, `search_*` on `gmail` tool | 0.10 |
+| `L1_GMAIL_DELETE` | `delete`, `trash`, `remove` on `gmail` tool | 0.85 |
+| `L1_GMAIL_READ` | `list_*`, `get_*`, `read_*`, `search_*` on `gmail` tool | 0.05 |
 
 #### Google Calendar
 
@@ -428,8 +468,8 @@ To change the default score for a built-in rule:
 |---------|-------------|---------------|
 | `L1_GCAL_CREATE` | `create_event`, `insert`, `add` on `google-calendar` tool | 0.40 |
 | `L1_GCAL_UPDATE` | `update_event`, `patch`, `modify` on `google-calendar` tool | 0.50 |
-| `L1_GCAL_DELETE` | `delete_event`, `remove` on `google-calendar` tool | 0.75 |
-| `L1_GCAL_READ` | `list_*`, `get_*`, `read_*`, `search_*` on `google-calendar` tool | 0.10 |
+| `L1_GCAL_DELETE` | `delete_event`, `remove` on `google-calendar` tool | 0.70 |
+| `L1_GCAL_READ` | `list_*`, `get_*`, `read_*`, `search_*` on `google-calendar` tool | 0.05 |
 
 > **Tip:** View all active L1 rule IDs and their current scores in the dashboard **Rules** tab → Built-in L1 Rules section, or via `agentsgate policy list`.
 
@@ -442,7 +482,7 @@ AgentsGate automatically snapshots files before any risky operation. If somethin
 ### View available checkpoints
 
 ```bash
-agentsgate checkpoint list
+agentsgate checkpoints
 ```
 
 Or use the Checkpoints tab in the dashboard.
@@ -602,7 +642,7 @@ In `config.json`:
 Clients send their key via the `X-API-Key` header:
 
 ```bash
-curl -H "X-API-Key: viewer-key-abc123" http://localhost:3000/operations
+curl -H "X-API-Key: viewer-key-abc123" http://localhost:4001/operations
 ```
 
 ---
@@ -631,8 +671,8 @@ Automatically pause an agent after too many consecutive high-risk events:
 Manage via dashboard or CLI:
 
 ```bash
-agentsgate circuit list          # Show all circuit states
-agentsgate circuit reset <agentId>   # Re-enable a tripped circuit
+agentsgate circuit-breakers list          # Show all circuit states
+agentsgate circuit-breakers reset <agentId>   # Re-enable a tripped circuit
 ```
 
 ### Daily quota
@@ -734,7 +774,7 @@ agentsgate approvals expire <id>        # Manually expire
 ### Checkpoints and Rollback
 
 ```bash
-agentsgate checkpoint list              # List checkpoints
+agentsgate checkpoints              # List checkpoints
 agentsgate rollback <id>                # Restore files
 agentsgate rollback <id> --preview      # Preview without restoring
 ```
@@ -756,8 +796,8 @@ agentsgate report                       # Risk summary report
 ### Agent Management
 
 ```bash
-agentsgate circuit list                 # Circuit breaker states
-agentsgate circuit reset <agentId>      # Reset a tripped circuit
+agentsgate circuit-breakers list                 # Circuit breaker states
+agentsgate circuit-breakers reset <agentId>      # Reset a tripped circuit
 agentsgate quota set <agentId> <n>      # Set daily quota
 agentsgate quota show <agentId>         # Current usage
 agentsgate quota reset <agentId>        # Reset usage
@@ -929,7 +969,44 @@ AIエージェント（Claude、GPTなど）
 | **L2** | あなた個人のエージェント履歴（ベイズモデル） | エージェントごとに10件以上の結果が蓄積された後 |
 | **L3** | コミュニティリスクデータベース | オプトインのみ |
 
+### 保護レベル
+
+スコアだけでは「何をすべきか」を決められません。`DROP TABLE` は 1.00、
+`SELECT * FROM users` は 0.60 ですが、この 2 つは程度ではなく**種類**が違います。
+SELECT を通すためにしきい値を上げると、`DELETE FROM orders`（0.90）まで通ってしまいます。
+そこで組み込みルールには**カテゴリ**が付いており、保護レベルがカテゴリごとの扱いを決めます。
+
+```bash
+agentsgate level              # 現在の設定と、その理由を表示
+agentsgate level strict       # 変更
+```
+
+ダッシュボードのヘッダにも同じ切り替えがあり、そちらで変更すると実行中のプロキシに即座に反映されます。
+
+| | `minimal` | **`balanced`**（既定） | `strict` |
+|---|---|---|---|
+| テーブル全消し・全行削除 | block | block | block |
+| 多重文 SQL | block | block | block |
+| 鍵・認証情報（`.env`、`.pem`） | allow | **block** | block |
+| 個人情報の読み出し | allow | allow | **承認** |
+| メール・メッセージの送信 | allow | allow | **承認** |
+| メール・メッセージの削除 | allow | **承認** | block |
+| ファイル・レコードの削除 | allow | allow | **承認** |
+| ファイル・レコードの追加と更新 | allow | allow | allow |
+| シェルコマンドの実行 | allow | allow | **承認** |
+| 読み取り全般 | allow | allow | allow |
+
+既定が `balanced` なのは、最も多い使い方が「個人が自分のプロジェクトをエージェントの
+暴走から守る」ことだからです。取り返しがつかないものだけを止め、それ以外は邪魔をしません。
+扱うデータが自分だけのものでないなら `strict` にしてください。個人情報の読み出しを
+人間の確認対象にするのはこのレベルです。
+
+**`balanced` は利便性のための設定であり、データ保護の姿勢ではありません。**
+シェルコマンドは実行され、`users` という名前のテーブルも読み取れます。
+
 ### デフォルトの介入しきい値
+
+組み込みルールが 1 つも発火しなかった操作は、スコアが以下のしきい値で判定されます。
 
 | スコア | 動作 |
 |-------|------|
@@ -938,6 +1015,7 @@ AIエージェント（Claude、GPTなど）
 | `≥ 0.70` | **ブロック** — 操作を拒否、理由を記録 |
 
 これらのしきい値は[ポリシーファイル](#3-ポリシーシステム)で変更できます。
+ポリシールールはレベルの後に適用され、レベルより優先されます。
 
 ### チェックポイント
 
@@ -947,7 +1025,7 @@ AIエージェント（Claude、GPTなど）
 
 ## 2. ダッシュボード
 
-`http://localhost:3000`（または設定したダッシュボードポート）でダッシュボードを開きます。
+`http://localhost:4001`（または設定したダッシュボードポート）でダッシュボードを開きます。
 
 ### Operationsタブ（操作）
 
@@ -1282,7 +1360,7 @@ C:\Users\<名前>\.agentsgate\policy.json   （Windows）
 |---------|-----------|--------------|
 | `L1_SLACK_SEND` | `slack`ツールでの`send_message`、`post_message`、`reply` | 0.70 |
 | `L1_SLACK_DELETE` | `slack`ツールでの`delete_message`、`delete`、`remove` | 0.80 |
-| `L1_SLACK_READ` | `slack`ツールでの`list_*`、`get_*`、`read_*`、`search_*`、`history` | 0.10 |
+| `L1_SLACK_READ` | `slack`ツールでの`list_*`、`get_*`、`read_*`、`search_*`、`history` | 0.05 |
 
 #### Gmail
 
@@ -1290,8 +1368,8 @@ C:\Users\<名前>\.agentsgate\policy.json   （Windows）
 |---------|-----------|--------------|
 | `L1_GMAIL_SEND` | `gmail`ツールでの`send`、`reply`、`forward` | 0.90 |
 | `L1_GMAIL_DRAFT` | `gmail`ツールでの`draft`、`create`、`compose`（送信以外） | 0.30 |
-| `L1_GMAIL_DELETE` | `gmail`ツールでの`delete`、`trash`、`remove` | 0.80 |
-| `L1_GMAIL_READ` | `gmail`ツールでの`list_*`、`get_*`、`read_*`、`search_*` | 0.10 |
+| `L1_GMAIL_DELETE` | `gmail`ツールでの`delete`、`trash`、`remove` | 0.85 |
+| `L1_GMAIL_READ` | `gmail`ツールでの`list_*`、`get_*`、`read_*`、`search_*` | 0.05 |
 
 #### Google Calendar
 
@@ -1299,8 +1377,8 @@ C:\Users\<名前>\.agentsgate\policy.json   （Windows）
 |---------|-----------|--------------|
 | `L1_GCAL_CREATE` | `google-calendar`ツールでの`create_event`、`insert`、`add` | 0.40 |
 | `L1_GCAL_UPDATE` | `google-calendar`ツールでの`update_event`、`patch`、`modify` | 0.50 |
-| `L1_GCAL_DELETE` | `google-calendar`ツールでの`delete_event`、`remove` | 0.75 |
-| `L1_GCAL_READ` | `google-calendar`ツールでの`list_*`、`get_*`、`read_*`、`search_*` | 0.10 |
+| `L1_GCAL_DELETE` | `google-calendar`ツールでの`delete_event`、`remove` | 0.70 |
+| `L1_GCAL_READ` | `google-calendar`ツールでの`list_*`、`get_*`、`read_*`、`search_*` | 0.05 |
 
 > **ヒント：** ダッシュボードの**Rules**タブ →「組み込みL1ルール」セクション、または `agentsgate policy list` でアクティブなL1ルールIDと現在のスコアをすべて確認できます。
 
@@ -1313,7 +1391,7 @@ AgentsGateはリスクの高い操作の前に自動的にファイルをスナ�
 ### 利用可能なチェックポイントの確認
 
 ```bash
-agentsgate checkpoint list
+agentsgate checkpoints
 ```
 
 またはダッシュボードのCheckpointsタブを使用します。
@@ -1473,7 +1551,7 @@ APIキーをロールにマッピングしてダッシュボードアクセス�
 クライアントは`X-API-Key`ヘッダーでキーを送信します：
 
 ```bash
-curl -H "X-API-Key: viewer-key-abc123" http://localhost:3000/operations
+curl -H "X-API-Key: viewer-key-abc123" http://localhost:4001/operations
 ```
 
 ---
@@ -1502,8 +1580,8 @@ curl -H "X-API-Key: viewer-key-abc123" http://localhost:3000/operations
 ダッシュボードまたはCLIで管理します：
 
 ```bash
-agentsgate circuit list              # すべてのサーキット状態を表示
-agentsgate circuit reset <agentId>   # トリップしたサーキットを再有効化
+agentsgate circuit-breakers list              # すべてのサーキット状態を表示
+agentsgate circuit-breakers reset <agentId>   # トリップしたサーキットを再有効化
 ```
 
 ### 1日のクォータ
@@ -1605,7 +1683,7 @@ agentsgate approvals expire <id>        # 手動で期限切れに
 ### チェックポイントとロールバック
 
 ```bash
-agentsgate checkpoint list              # チェックポイントの一覧
+agentsgate checkpoints              # チェックポイントの一覧
 agentsgate rollback <id>                # ファイルを復元
 agentsgate rollback <id> --preview      # 復元せずにプレビュー
 ```
@@ -1627,8 +1705,8 @@ agentsgate report                       # リスクサマリーレポート
 ### エージェント管理
 
 ```bash
-agentsgate circuit list                 # サーキットブレーカーの状態
-agentsgate circuit reset <agentId>      # トリップしたサーキットをリセット
+agentsgate circuit-breakers list                 # サーキットブレーカーの状態
+agentsgate circuit-breakers reset <agentId>      # トリップしたサーキットをリセット
 agentsgate quota set <agentId> <n>      # 1日のクォータを設定
 agentsgate quota show <agentId>         # 現在の使用量
 agentsgate quota reset <agentId>        # 使用量をリセット

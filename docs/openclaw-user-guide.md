@@ -58,8 +58,8 @@ agentsgate start
 ```
 
 This starts:
-- **Proxy** on port `3100` — intercepts MCP tool calls
-- **Dashboard** on port `3000` — `http://localhost:3000`
+- **Proxy** on port `4000` — intercepts MCP tool calls
+- **Dashboard** on port `4001` — `http://localhost:4001`
 
 Leave this terminal open. AgentsGate must stay running while you use OpenClaw.
 
@@ -167,7 +167,7 @@ Run `openclaw doctor` to confirm MCP servers are accessible:
 openclaw doctor
 ```
 
-Then open the AgentsGate dashboard at `http://localhost:3000` and ask OpenClaw to do something simple (e.g., list files in a directory). You should immediately see the operation appear in the **Operations** tab.
+Then open the AgentsGate dashboard at `http://localhost:4001` and ask OpenClaw to do something simple (e.g., list files in a directory). You should immediately see the operation appear in the operation list on the **Overview** tab.
 
 ---
 
@@ -284,7 +284,7 @@ Add this to `~/.agentsgate/config.json`. Now you'll receive a Slack message when
 
 ### Watching OpenClaw work in real time
 
-Keep the dashboard open at `http://localhost:3000` while OpenClaw runs. The **Operations** tab shows a live feed of every tool call, its risk score, and the decision.
+Keep the dashboard open at `http://localhost:4001` while OpenClaw runs. The operation list on the **Overview** tab shows a live feed of every tool call, its risk score, and the decision.
 
 Color coding in the dashboard:
 - 🟢 **Green** — allowed (score < 0.20 with recommended policy)
@@ -295,7 +295,7 @@ Color coding in the dashboard:
 
 When OpenClaw hits a risky step, it pauses and waits. The dashboard shows the pending approval in the **Approvals** tab.
 
-1. Open `http://localhost:3000` → **Approvals**
+1. Open `http://localhost:4001` → **Overview** tab, pending-approval list
 2. Click the pending operation
 3. Review: what tool, what method, what file path or command
 4. Click **Approve** (OpenClaw continues) or **Deny** (OpenClaw receives an error)
@@ -303,7 +303,7 @@ When OpenClaw hits a risky step, it pauses and waits. The dashboard shows the pe
 From the CLI:
 
 ```bash
-agentsgate approvals list
+agentsgate approvals
 agentsgate approvals approve <id>
 agentsgate approvals deny <id>
 ```
@@ -314,7 +314,7 @@ If OpenClaw did something unwanted, find the checkpoint taken just before:
 
 ```bash
 # List checkpoints with timestamps
-agentsgate checkpoint list
+agentsgate checkpoints
 
 # Preview what would be restored (safe — no changes made)
 agentsgate rollback <checkpoint-id> --preview
@@ -381,7 +381,7 @@ agentsgate report
 ```json
 {
   "proxy": {
-    "port": 3100,
+    "port": 4000,
     "checkpointThreshold": 0.20
   },
   "intervention": {
@@ -430,7 +430,7 @@ If not found, add npm's global bin to your PATH (see the installation guide).
 
 ### Operations appear in the dashboard but OpenClaw seems slow
 
-Each tool call now waits for AgentsGate to score and log it — this adds ~5ms per call. If an operation is stuck in **Approvals**, OpenClaw is waiting for you. Check `http://localhost:3000/approvals` or run `agentsgate approvals list`.
+Each tool call now waits for AgentsGate to score and log it — this adds ~5ms per call. If an operation is stuck awaiting approval, OpenClaw is waiting for you. Check `http://localhost:4001/approvals` or run `agentsgate approvals`.
 
 ### A legitimate operation keeps getting blocked
 
@@ -516,8 +516,8 @@ agentsgate start
 ```
 
 これにより以下が起動します：
-- **プロキシ** ポート `3100` — MCPツール呼び出しを傍受
-- **ダッシュボード** ポート `3000` — `http://localhost:3000`
+- **プロキシ** ポート `4000` — MCPツール呼び出しを傍受
+- **ダッシュボード** ポート `4001` — `http://localhost:4001`
 
 このターミナルは開いたままにしてください。OpenClawを使用する間、AgentsGateを実行し続ける必要があります。
 
@@ -625,7 +625,7 @@ MCPサーバーにアクセスできることを確認するために `openclaw 
 openclaw doctor
 ```
 
-次に `http://localhost:3000` でAgentsGateダッシュボードを開き、OpenClawに簡単な操作（例：ディレクトリ内のファイルの一覧表示）を依頼します。すぐに **Operations** タブに操作が表示されるはずです。
+次に `http://localhost:4001` でAgentsGateダッシュボードを開き、OpenClawに簡単な操作（例：ディレクトリ内のファイルの一覧表示）を依頼します。すぐに **Overview** タブの操作一覧に操作が表示されるはずです。
 
 ---
 
@@ -742,7 +742,7 @@ OpenClawが承認をトリガーしたりブロックされたりしたとき、
 
 ### OpenClawの動作をリアルタイムで監視する
 
-OpenClawの実行中は `http://localhost:3000` のダッシュボードを開いたままにします。**Operations** タブには、すべてのツール呼び出し、リスクスコア、決定のライブフィードが表示されます。
+OpenClawの実行中は `http://localhost:4001` のダッシュボードを開いたままにします。**Overview** タブの操作一覧には、すべてのツール呼び出し、リスクスコア、決定のライブフィードが表示されます。
 
 ダッシュボードの色分け：
 - 🟢 **緑** — 許可済み（推奨ポリシーではスコア < 0.20）
@@ -753,7 +753,7 @@ OpenClawの実行中は `http://localhost:3000` のダッシュボードを開�
 
 OpenClawがリスクの高いステップに達すると、一時停止して待機します。ダッシュボードの **Approvals** タブに保留中の承認が表示されます。
 
-1. `http://localhost:3000` → **Approvals** を開く
+1. `http://localhost:4001` → **Overview** tab, pending-approval list を開く
 2. 保留中の操作をクリック
 3. 確認：どのツール、どのメソッド、どのファイルパスまたはコマンドか
 4. **Approve**（OpenClawが続行）または **Deny**（OpenClawがエラーを受け取る）をクリック
@@ -761,7 +761,7 @@ OpenClawがリスクの高いステップに達すると、一時停止して待
 CLIから：
 
 ```bash
-agentsgate approvals list
+agentsgate approvals
 agentsgate approvals approve <id>
 agentsgate approvals deny <id>
 ```
@@ -772,7 +772,7 @@ OpenClawが意図しないことをした場合、直前に取られたチェッ
 
 ```bash
 # タイムスタンプ付きでチェックポイントを一覧表示
-agentsgate checkpoint list
+agentsgate checkpoints
 
 # 何が復元されるかをプレビュー（安全 — 変更なし）
 agentsgate rollback <checkpoint-id> --preview
@@ -839,7 +839,7 @@ agentsgate report
 ```json
 {
   "proxy": {
-    "port": 3100,
+    "port": 4000,
     "checkpointThreshold": 0.20
   },
   "intervention": {
@@ -888,7 +888,7 @@ which agentsgate
 
 ### 操作はダッシュボードに表示されるがOpenClawが遅い
 
-各ツール呼び出しはAgentsGateがスコアリングしてログに記録するのを待つ必要があります — これにより呼び出しごとに約5msの遅延が加わります。操作が **Approvals** で止まっている場合、OpenClawはあなたを待っています。`http://localhost:3000/approvals` を確認するか `agentsgate approvals list` を実行してください。
+各ツール呼び出しはAgentsGateがスコアリングしてログに記録するのを待つ必要があります — これにより呼び出しごとに約5msの遅延が加わります。操作が **Approvals** で止まっている場合、OpenClawはあなたを待っています。`http://localhost:4001/approvals` を確認するか `agentsgate approvals` を実行してください。
 
 ### 正当な操作が繰り返しブロックされる
 
