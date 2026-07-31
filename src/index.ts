@@ -8,6 +8,13 @@ export type { PipelineModules } from './modules/m1-proxy/index.js';
 export { MCPStdioProxy } from './modules/m1-proxy/stdio.js';
 export type { StdioProxyOptions } from './modules/m1-proxy/stdio.js';
 export { MCPStreamableHttpProxy } from './modules/m1-proxy/streamable-http.js';
+export {
+  getProtectionLevel, resolveLevelAction,
+  PROTECTION_LEVEL_NAMES, DEFAULT_PROTECTION_LEVEL,
+} from './protection-levels.js';
+export type {
+  ProtectionLevel, ProtectionLevelName, RuleCategory, CategoryAction,
+} from './protection-levels.js';
 export type { StreamableHttpProxyOptions } from './modules/m1-proxy/streamable-http.js';
 export { StateStore } from './modules/m2-store/index.js';
 export { OperationLogger, redactParams } from './modules/m3-logger/index.js';

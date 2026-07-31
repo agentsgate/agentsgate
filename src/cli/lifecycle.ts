@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import { MCPProxy, createPipeline } from '../modules/m1-proxy/index.js';
 import { MCPStdioProxy } from '../modules/m1-proxy/stdio.js';
 import { createApprovalResolver } from './approval-resolver.js';
+import { getProtectionLevel, DEFAULT_PROTECTION_LEVEL } from '../protection-levels.js';
 import { StateStore } from '../modules/m2-store/index.js';
 import { OperationLogger } from '../modules/m3-logger/index.js';
 import { CheckpointEngine } from '../modules/m4-checkpoint/index.js';
@@ -145,6 +146,7 @@ export async function cmdStart(args: string[]): Promise<void> {
     onExpire: (a) => onApprovalExpire?.(a),
   });
   const approvalWaitMs = config.approvals?.waitTimeoutMs ?? 60_000;
+  const protectionLevel = getProtectionLevel(config.protection?.level ?? DEFAULT_PROTECTION_LEVEL);
   await approvalQueue.initialize();
 
   const rateLimiter = config.rateLimit?.enabled
@@ -187,6 +189,7 @@ export async function cmdStart(args: string[]): Promise<void> {
       intelligenceEngine,
       approvalQueue,
       grantStore: store,
+      protectionLevel,
       telemetry,
       rateLimiter,
       policy: policy.rules.length > 0 ? policy : undefined,
@@ -290,6 +293,7 @@ export async function cmdStart(args: string[]): Promise<void> {
   }
 
   console.log(`AgentsGate v${AGENTSGATE_VERSION} started`);
+  console.log(`  Protection: ${protectionLevel?.name ?? 'thresholds only'} — ${protectionLevel?.summary ?? ''}`);
   console.log(`  Proxy:     http://localhost:${port}`);
   console.log(`  Dashboard: http://localhost:${dashboardPort}`);
   console.log(`  Database:  ${dbPath}`);
@@ -486,6 +490,7 @@ export async function cmdProxy(args: string[]): Promise<void> {
     telemetry: telem,
     rateLimiter,
     policy: policy.rules.length > 0 ? policy : undefined,
+    protectionLevel: getProtectionLevel(config.protection?.level ?? DEFAULT_PROTECTION_LEVEL),
   });
 
   // Holds a require_approval operation until the dashboard — another process,

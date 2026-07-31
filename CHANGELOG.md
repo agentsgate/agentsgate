@@ -6,6 +6,29 @@
 
 ### Changed
 
+- **Protection levels, and a new default.** The shipped defaults were unusable
+  for the case most people have — one person keeping an agent away from their
+  own project. `git status` was blocked. So was `npm test`, and a one-row
+  `UPDATE ... WHERE id = 1`. Writing a file needed approval every time. The one
+  thing everyone actually fears, `DROP TABLE`, was blocked too, so the signal
+  was buried in the noise.
+
+  Thresholds could not fix that: `DROP TABLE` (1.00) and `SELECT * FROM users`
+  (0.60) differ in kind, not degree, so raising the bar past the SELECT also
+  clears `DELETE FROM orders` (0.90). Every built-in rule now carries a
+  category, and a level says what to do with each — `agentsgate level` shows and
+  sets it, `protection.level` configures it.
+
+  `minimal` stops only wholesale destruction. **`balanced`, the new default,**
+  adds credentials blocked and deletions held for approval, and leaves ordinary
+  work alone. `strict` adds personal-data reads and outbound sends. Adding and
+  updating run at every level; wiping a table is refused at every level. Policy
+  rules are applied after the level and still override it.
+
+  This changes the default verdict for many operations. Anyone relying on the
+  old behaviour can set `protection.level` to `strict`, or omit it and pin
+  thresholds — a level is only applied when one is configured.
+
 - **The CLI reference moved out of the README** into
   [docs/cli.md](docs/cli.md). The README kept a short table of the commands
   most people need and links to the full one; it was 678 lines, of which 149
@@ -27,6 +50,14 @@
   every command and every sample output in it was run against the built CLI.
 
 ### Fixed
+
+- **`L1_EXECUTE_COMMAND` no longer fires on a database write.** It matched the
+  method name alone, and the database MCP servers call their write method
+  `execute` — so a one-row `UPDATE ... WHERE id = 1` was scored as arbitrary
+  code execution at 0.80 and blocked. Scoring takes the maximum, so
+  `L1_DB_EXECUTE`'s own 0.30 could never take effect and the database rules were
+  dead weight. Database tools are now excluded; everything else keeps the
+  original reading.
 
 - **Counting rows in a sensitive table no longer counts as exfiltration.**
   `L1_DB_EXFIL` fired on any SELECT naming `users`, `passwords`, `tokens` and

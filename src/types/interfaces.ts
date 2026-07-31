@@ -56,6 +56,11 @@ export interface FiredRule {
   layer: 'L1' | 'L2' | 'L3' | 'policy';
   /** Optional human-readable rule description */
   description?: string;
+  /**
+   * What the rule is about — used by protection levels, which act on the kind
+   * of operation rather than on its score. Present for built-in L1 rules.
+   */
+  category?: string;
 }
 
 /**

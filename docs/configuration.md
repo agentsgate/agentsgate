@@ -67,6 +67,7 @@ Anything security-relevant is called out in the table. Read the
 | `proxy.port` | `4000` | Proxy listen port; dashboard runs on `port+1` |
 | `proxy.host` | `127.0.0.1` | Bind address for proxy, dashboard, and WS gateway. **The proxy is unauthenticated — only set a routable address behind an authenticating reverse proxy.** See [Security model](../README.md#security-model--read-this-first) |
 | `proxy.checkpointThreshold` | `0.3` | Minimum risk score to trigger a pre-op checkpoint |
+| `protection.level` | `balanced` | `minimal`, `balanced` or `strict` — what to stop, by kind of operation rather than by score. `agentsgate level` shows and sets it |
 | `intervention.allowBelow` | `0.3` | Risk scores below this are allowed |
 | `intervention.blockAtOrAbove` | `0.7` | Risk scores at or above this are blocked |
 | `webhook.url` | — | POST target for approval-required notifications |

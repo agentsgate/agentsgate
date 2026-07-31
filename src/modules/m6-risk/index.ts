@@ -1,8 +1,15 @@
+import type { RuleCategory } from '../../protection-levels.js';
 import type { MCPOperation, RiskAssessment, FiredRule } from '../../types/interfaces.js';
 
 // ── L1 Static Rule definitions ────────────────────────────────────────────────
 
 interface StaticRule {
+  /**
+   * What the rule is about, for protection levels. Two rules can share a score
+   * and want different treatment — `DROP TABLE` and a personal-data SELECT are
+   * not the same kind of thing.
+   */
+  category: RuleCategory;
   id: string;
   score: number;
   description: string;
@@ -240,6 +247,12 @@ function sqlHasSemicolon(op: MCPOperation): boolean {
 }
 
 /** Returns true if the operation is from any AgentsGate database MCP server. */
+/** Tools that run arbitrary commands, as opposed to merely having an `execute` method. */
+function isShellTool(tool: string): boolean {
+  return /\b(shell|bash|zsh|sh|cmd|powershell|pwsh|terminal|console|exec|command|process|subprocess)\b/i
+    .test(tool.replace(/[-_]/g, ' '));
+}
+
 function isDbTool(tool: string): boolean {
   return tool === 'database' ||
     tool === 'agentsgate-database' ||
@@ -254,6 +267,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DELETE_FILE',
     score: 0.9,
+    category: 'write_delete',
     description: 'Filesystem delete/remove/unlink operation — irreversible file loss',
     matches: op =>
       (op.tool === 'filesystem' || op.tool === 'fs') &&
@@ -262,6 +276,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_OVERWRITE_FILE',
     score: 0.65,
+    category: 'write_update',
     description: 'Filesystem write/overwrite/create — existing content may be lost',
     matches: op =>
       (op.tool === 'filesystem' || op.tool === 'fs') &&
@@ -271,6 +286,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_SENSITIVE_PATH_WRITE',
     score: 0.9,
+    category: 'credential',
     description: 'Write to sensitive path (.env, .aws, .ssh, credentials, secrets)',
     matches: op =>
       !isReadOnly(op) && isSensitivePath(op.params),
@@ -279,12 +295,14 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DROP_TABLE',
     score: 0.95,
+    category: 'destructive',
     description: 'Database drop/truncate — destroys table data permanently',
     matches: op => methodContains(op, 'drop', 'truncate') && op.tool !== 'filesystem',
   },
   {
     id: 'L1_DELETE_RECORD',
     score: 0.75,
+    category: 'write_delete',
     description: 'Database delete/remove record operation',
     matches: op => methodContains(op, 'delete', 'remove') && op.tool !== 'filesystem',
   },
@@ -292,13 +310,22 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_EXECUTE_COMMAND',
     score: 0.8,
+    category: 'exec',
     description: 'Shell command execution — arbitrary code execution risk',
-    matches: op => methodContains(op, 'execute', 'exec', 'run_command', 'shell', 'spawn'),
+    // Not on a database tool. They name their write method `execute`, so
+    // matching the method alone scored a one-row UPDATE as arbitrary code
+    // execution — 0.80, blocked — and since scoring takes the maximum, the
+    // database rule's own 0.30 could never take effect. Everything else keeps
+    // the original reading, including a tool that merely looks like a shell.
+    matches: op =>
+      !isDbTool(op.tool) &&
+      (isShellTool(op.tool) || methodContains(op, 'execute', 'exec', 'run_command', 'shell', 'spawn')),
   },
   // ── Destructive git/VCS ops ─────────────────────────────────────────────
   {
     id: 'L1_GIT_FORCE_PUSH',
     score: 0.85,
+    category: 'destructive',
     description: 'Destructive git operation (force push / reset / rebase) — rewrites history',
     matches: op =>
       (op.tool === 'github' || op.tool === 'git') &&
@@ -309,6 +336,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_SLACK_SEND',
     score: 0.7,
+    category: 'outbound_write',
     description: 'Slack message send/post — visible to channel or user, cannot be unsent without delete',
     matches: op =>
       op.tool === 'slack' &&
@@ -317,6 +345,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_SLACK_DELETE',
     score: 0.8,
+    category: 'outbound_delete',
     description: 'Slack message/file delete — irreversible removal of content',
     matches: op =>
       op.tool === 'slack' &&
@@ -325,6 +354,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_SLACK_READ',
     score: 0.05,
+    category: 'read',
     description: 'Slack read/list/search — no data modification',
     matches: op =>
       op.tool === 'slack' &&
@@ -334,6 +364,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GCAL_CREATE',
     score: 0.4,
+    category: 'outbound_write',
     description: 'Google Calendar event creation — adds event to attendees calendars',
     matches: op =>
       op.tool === 'google-calendar' &&
@@ -342,6 +373,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GCAL_UPDATE',
     score: 0.5,
+    category: 'outbound_write',
     description: 'Google Calendar event update/patch — modifies existing event and notifies attendees',
     matches: op =>
       op.tool === 'google-calendar' &&
@@ -350,6 +382,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GCAL_DELETE',
     score: 0.7,
+    category: 'outbound_delete',
     description: 'Google Calendar event deletion — removes event and cancels attendee invites',
     matches: op =>
       op.tool === 'google-calendar' &&
@@ -358,6 +391,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GCAL_READ',
     score: 0.05,
+    category: 'read',
     description: 'Google Calendar read/list/search — no data modification',
     matches: op =>
       op.tool === 'google-calendar' &&
@@ -367,6 +401,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GMAIL_SEND',
     score: 0.9,
+    category: 'outbound_write',
     description: 'Gmail send email — high risk: email is delivered externally and cannot be recalled',
     matches: op =>
       op.tool === 'gmail' &&
@@ -375,6 +410,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GMAIL_DELETE',
     score: 0.85,
+    category: 'outbound_delete',
     description: 'Gmail delete/trash email — moves to trash or permanently deletes',
     matches: op =>
       op.tool === 'gmail' &&
@@ -383,6 +419,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GMAIL_DRAFT',
     score: 0.3,
+    category: 'outbound_write',
     description: 'Gmail create/update draft — saved locally, not yet sent',
     matches: op =>
       op.tool === 'gmail' &&
@@ -392,6 +429,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_GMAIL_READ',
     score: 0.05,
+    category: 'read',
     description: 'Gmail read/list/search — no data modification',
     matches: op =>
       op.tool === 'gmail' &&
@@ -401,6 +439,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_DROP',
     score: 1.0,
+    category: 'destructive',
     description: 'Database DROP TABLE/DATABASE/INDEX — permanent, unrecoverable data loss',
     matches: op =>
       isDbTool(op.tool) &&
@@ -409,6 +448,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_TRUNCATE',
     score: 0.95,
+    category: 'destructive',
     description: 'Database TRUNCATE — wipes all table data without row-level recovery',
     matches: op =>
       isDbTool(op.tool) &&
@@ -417,6 +457,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_DELETE_NO_WHERE',
     score: 0.9,
+    category: 'destructive',
     description: 'Database DELETE without WHERE clause — deletes all rows in table',
     matches: op =>
       isDbTool(op.tool) &&
@@ -426,6 +467,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_UPDATE_NO_WHERE',
     score: 0.85,
+    category: 'destructive',
     description: 'Database UPDATE without WHERE clause — updates every row in table',
     matches: op =>
       isDbTool(op.tool) &&
@@ -435,6 +477,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_DDL',
     score: 0.7,
+    category: 'write_create',
     description: 'Database DDL operation (CREATE/ALTER/PRAGMA) — structural schema change',
     matches: op =>
       isDbTool(op.tool) &&
@@ -445,6 +488,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_EXECUTE',
     score: 0.3,
+    category: 'write_update',
     description: 'Database DML execute (INSERT/UPDATE/DELETE with WHERE) — modifies data',
     matches: op =>
       isDbTool(op.tool) &&
@@ -455,6 +499,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_READ',
     score: 0.05,
+    category: 'read',
     description: 'Database read-only operation (SELECT query, list tables, describe)',
     matches: op =>
       isDbTool(op.tool) &&
@@ -463,6 +508,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_RESTORE',
     score: 0.6,
+    category: 'write_update',
     description: 'Database snapshot restore — replaces current table contents with snapshot data',
     matches: op =>
       isDbTool(op.tool) &&
@@ -471,6 +517,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_EXFIL',
     score: 0.6,
+    category: 'exfiltration',
     description: 'SELECT query targeting sensitive table names (users, passwords, tokens, secrets, credentials, billing, etc.)',
     matches: op =>
       isDbTool(op.tool) &&
@@ -481,6 +528,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_DB_BATCH_DESTROY',
     score: 0.95,
+    category: 'injection',
     description: 'SQL parameter contains semicolon — possible multi-statement injection (DROP, DELETE, TRUNCATE after DML)',
     matches: op =>
       isDbTool(op.tool) &&
@@ -491,6 +539,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_SENSITIVE_FILE_TYPE',
     score: 0.75,
+    category: 'credential',
     description: 'Write to high-value file type (.pem, .key, .env, .crt, etc.) — likely key material or secrets',
     matches: op => {
       if (isReadOnly(op)) return false;
@@ -502,6 +551,7 @@ const L1_RULES: StaticRule[] = [
   {
     id: 'L1_READ_ONLY',
     score: 0.05,
+    category: 'read',
     description: 'Read-only operation — no data modification risk',
     matches: op => isReadOnly(op),
   },
@@ -534,6 +584,7 @@ export class RiskScoringEngine {
       score: r.score,
       layer: 'L1' as const,
       description: r.description,
+      category: r.category,
     }));
     const staticScore =
       matchedRules.length > 0

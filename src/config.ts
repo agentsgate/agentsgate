@@ -16,6 +16,7 @@
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs/promises';
+import { DEFAULT_PROTECTION_LEVEL } from './protection-levels.js';
 
 const DEFAULT_APPROVAL_MAX_AGE_MS = 86_400_000;
 
@@ -146,6 +147,18 @@ export interface AgentsGateConfig {
      */
     signingSecret?: string;
   };
+  /**
+   * How much to stop, expressed as a kind of operation rather than a number.
+   *
+   *   minimal   only wholesale destruction — DROP, TRUNCATE, DELETE with no WHERE
+   *   balanced  the above, plus credentials blocked and deletions held (default)
+   *   strict    plus personal-data reads and outbound sends held
+   *
+   * Policy rules are applied after the level and still win.
+   */
+  protection?: {
+    level?: 'minimal' | 'balanced' | 'strict';
+  };
   /** Namespace identifier — controls which DB file is used (data-{team}.db). */
   team?: string;
 }
@@ -159,6 +172,9 @@ export const DEFAULT_CONFIG: AgentsGateConfig = {
   intervention: {
     allowBelow: 0.3,
     blockAtOrAbove: 0.7,
+  },
+  protection: {
+    level: DEFAULT_PROTECTION_LEVEL,
   },
   approvals: {
     maxAgeMs: DEFAULT_APPROVAL_MAX_AGE_MS,

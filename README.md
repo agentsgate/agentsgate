@@ -284,7 +284,54 @@ Two things about `L1_DB_EXFIL` that are easy to trip over:
 - **Singular and plural both count.** `user`, `users`, `public."User"`,
   `app_user` and `user_accounts` all match; a *column* named `user_id` does not.
 
-### Intervention thresholds (default)
+### Protection levels
+
+Scores alone cannot express what most people want. `DROP TABLE` scores 1.00 and
+`SELECT * FROM users` scores 0.60 — they differ in *kind*, not degree, so
+raising the bar until the SELECT passes also clears `DELETE FROM orders` (0.90).
+So each rule carries a category, and a level says what to do with each.
+
+```bash
+agentsgate level              # what is stopped right now, and why
+agentsgate level minimal      # switch
+```
+
+| | `minimal` | **`balanced`** (default) | `strict` |
+|---|---|---|---|
+| Wipe a table, delete every row | block | block | block |
+| Multi-statement SQL | block | block | block |
+| Keys and secrets (`.env`, `.pem`) | allow | **block** | block |
+| Read personal data | allow | allow | **approval** |
+| Send mail / messages | allow | allow | **approval** |
+| Delete mail / messages | allow | **approval** | block |
+| Delete a file or record | allow | **approval** | approval |
+| Add or change a file or record | allow | allow | allow |
+| Run a shell command | allow | allow | **approval** |
+| Read anything | allow | allow | allow |
+
+What that means in practice:
+
+```
+                        minimal   balanced   strict
+git status              allow     allow      approval
+write a file            allow     allow      allow
+delete a file           allow     approval   approval
+write to .env           allow     BLOCK      BLOCK
+UPDATE ... WHERE id=1   allow     allow      allow
+SELECT * FROM users     allow     allow      approval
+DROP TABLE              BLOCK     BLOCK      BLOCK
+DELETE with no WHERE    BLOCK     BLOCK      BLOCK
+```
+
+`balanced` is the default because the common case is one person keeping an
+agent from wrecking their own project: stop the irreversible things and the
+credentials, and stay out of the way otherwise. Move to `strict` when the data
+is not only yours. Policy rules are applied after the level and override it.
+
+### Intervention thresholds
+
+Levels decide on the category of an operation. Where no built-in rule fires, the
+score falls through to these thresholds.
 
 | Score range | Action |
 |-------------|--------|
