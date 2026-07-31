@@ -1,6 +1,6 @@
 {
   "name": "agentsgate",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "AI Agent I/O Tracking & Rollback System \u2014 MCP Proxy Gateway",
   "type": "module",
   "license": "MIT",
