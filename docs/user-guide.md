@@ -76,7 +76,8 @@ the running proxy immediately.
 
 | | `minimal` | **`balanced`** (default) | `strict` |
 |---|---|---|---|
-| Wipe a table, delete every row | block | block | block |
+| Wipe a table, `mkfs`, `dd` onto a device | block | block | block |
+| Delete a directory, `rm -rf`, a wildcard | allow | **approval** | block |
 | Multi-statement SQL | block | block | block |
 | Keys and secrets (`.env`, `.pem`) | allow | **block** | block |
 | Read personal data | allow | allow | **approval** |
@@ -985,7 +986,8 @@ agentsgate level strict       # 変更
 
 | | `minimal` | **`balanced`**（既定） | `strict` |
 |---|---|---|---|
-| テーブル全消し・全行削除 | block | block | block |
+| テーブル全消し・`mkfs`・デバイスへの `dd` | block | block | block |
+| ディレクトリ削除・`rm -rf`・ワイルドカード | allow | **承認** | block |
 | 多重文 SQL | block | block | block |
 | 鍵・認証情報（`.env`、`.pem`） | allow | **block** | block |
 | 個人情報の読み出し | allow | allow | **承認** |

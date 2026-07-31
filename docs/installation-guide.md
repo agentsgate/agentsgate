@@ -169,8 +169,8 @@ With Claude Desktop open and connected, ask Claude to do something simple, like 
 
 Out of the box AgentsGate runs at the **`balanced`** protection level: it
 refuses anything that wipes data — `DROP TABLE`, a `DELETE` with no `WHERE` —
-and anything writing to a credential file such as `.env`, and stays out of the
-way otherwise. Writing code, running tests and editing rows all go through
+and anything writing to a credential file such as `.env`. Deleting a directory
+or running `rm -rf` waits for your yes. Everything else stays out of the way. Writing code, running tests and editing rows all go through
 without a prompt.
 
 ```bash

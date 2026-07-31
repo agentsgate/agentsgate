@@ -127,9 +127,14 @@ describe('T437 — getL1RulesSnapshot() unit tests', () => {
     expect(snap2[0]!.score).toBeLessThanOrEqual(1);
   });
 
-  it('12. snapshot length matches expected rule count', () => {
-    const snapshot = getL1RulesSnapshot();
-    expect(snapshot.length).toBe(EXPECTED_RULE_IDS.length);
+  it('12. snapshot covers every rule this list names, and nothing has vanished', () => {
+    // Not an equality on the count: rules get added, and a test that fails
+    // whenever one does teaches people to edit the number rather than think
+    // about it. What must not happen is a rule silently disappearing.
+    const ids = getL1RulesSnapshot().map(r => r.id);
+    for (const expected of EXPECTED_RULE_IDS) expect(ids, expected).toContain(expected);
+    expect(ids.length).toBeGreaterThanOrEqual(EXPECTED_RULE_IDS.length);
+    expect(new Set(ids).size, 'duplicate rule id').toBe(ids.length);
   });
 
   it('13. result is JSON-serializable (no circular references or functions)', () => {

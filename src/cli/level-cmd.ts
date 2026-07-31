@@ -16,7 +16,8 @@ import type { CategoryAction, RuleCategory } from '../protection-levels.js';
 import { parseFlag } from './shared.js';
 
 const ROWS: Array<[RuleCategory, string]> = [
-  ['destructive', 'Wipe a table, delete every row, force-push'],
+  ['destructive', 'No undo at all — wipe a table, mkfs, dd onto a device'],
+  ['bulk_delete', 'Remove a directory or a set of files at once'],
   ['injection', 'Multi-statement SQL — the shape of an attack'],
   ['credential', 'Keys and secrets — .env, .pem, .ssh'],
   ['exfiltration', 'Read personal data — users, tokens, billing'],
