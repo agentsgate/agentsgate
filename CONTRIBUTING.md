@@ -124,6 +124,27 @@ We use **Vitest**. Tests live under `tests/` mirroring `src/`. Each module has u
 
 If you believe you've found a vulnerability, **do not** open a public issue. Follow the process in [SECURITY.md](SECURITY.md).
 
+## Diagrams
+
+The figure on the README and in the beginner guides is generated, not drawn by
+hand:
+
+```bash
+pip install Pillow
+python scripts/make-diagram.py
+```
+
+It writes `docs/assets/agentsgate-pipeline.png` and its Japanese counterpart.
+Edit the wording in the `EN` and `JA` dictionaries at the foot of that file
+rather than the images, and keep the caption beneath the figure in step — the
+caption is what carries the meaning when the picture cannot be seen.
+
+Screenshots do not belong in `docs/assets/`: everything with a `.png` there is
+published, and a screenshot of a settings page is how an email address ends up
+in a public repository.
+
+---
+
 ## Releases
 
 Contributors don't need to run `npm publish` — CI does it. Maintainers, the
