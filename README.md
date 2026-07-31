@@ -15,33 +15,13 @@
 
 AgentsGate sits between AI agents (Claude, GPT, etc.) and the MCP tools they call. Every tool call is intercepted, risk-scored, checkpointed, and optionally paused for human approval before execution. If an agent does something destructive, you can roll back in seconds.
 
-```
-AI Agent (Claude, GPT, etc.)
-        ↓ MCP Protocol
-  ┌──────────────────────────┐
-  │   AgentsGate Proxy      │  ← All traffic passes here
-  └────────┬─────────────────┘
-           │
-    ┌──────▼──────┐    ┌──────────────────────┐    ┌────────────────────┐
-    │   Logger    │    │  Risk Engine (L1/L2) │    │  Policy Engine     │
-    └──────┬──────┘    └──────┬───────────────┘    └────────┬───────────┘
-           │                  │                             │
-    ┌──────▼──────────────────▼─────────────────────────────▼───────────┐
-    │                     SQLite State Store                             │
-    └──────────────────────────────┬─────────────────────────────────────┘
-                                   │
-                          ┌────────▼────────┐
-                          │  Intervention   │  ← Block / Allow / Require-approval
-                          └────────┬────────┘
-                                   │
-               allowed ────────────┤──────────── blocked / pending
-                                   ↓
-                          ┌────────▼────────┐
-                          │  Actual MCP Tool│
-                          └─────────────────┘
+![How AgentsGate decides: risk rules produce a score and a category, a protection level says what to do with that category, and policy rules override it case by case](docs/assets/agentsgate-pipeline.png)
 
-   Dashboard REST API  ←→  SQLite  (read-only visibility, real-time SSE)
-```
+Two stages decide the verdict. The **protection level** is one broad setting
+covering every kind of operation — `agentsgate level` shows what it stops.
+**Policy rules** are your exceptions on top, and can tighten or loosen it.
+Everything is logged either way, and anything risky is checkpointed first so it
+can be rolled back.
 
 ---
 
