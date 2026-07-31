@@ -29,6 +29,7 @@ export function printUsage(): void {
   console.log('  agentsgate rollback <checkpointId>       Roll back a checkpoint');
   console.log('  agentsgate config [--config=path]        Show effective config');
   console.log('  agentsgate policy [list|add|remove|set-threshold]');
+  console.log('  agentsgate level [minimal|balanced|strict]  Show or set how much is stopped');
   console.log('  agentsgate proxy [--server=name|-- <cmd>]  Stdio MCP proxy');
   console.log('  agentsgate proxy discover                  List discovered MCP servers');
   console.log('  agentsgate export [N] [--format=json|csv|ndjson] [--output=file]');

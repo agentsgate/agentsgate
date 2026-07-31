@@ -28,6 +28,7 @@ import { cmdSessionsOps } from './cli/sessions-ops.js';
 import { cmdTop, cmdWatch, cmdSessions, cmdDiff, cmdSnapshot } from './cli/sessions.js';
 import { cmdHealth, cmdQuota, cmdCheckpointsCli, cmdRisk, cmdTelemetry, cmdApprovals, cmdErrors, cmdResolve, cmdRollback, cmdCircuitBreakers, cmdVerifyLogs, cmdRateLimits, cmdBenchmark } from './cli/dashboard-cmds.js';
 import { cmdPolicy } from './cli/policy-cmd.js';
+import { cmdLevel } from './cli/level-cmd.js';
 import { cmdTree, cmdExplain, cmdReport, cmdAudit, cmdReplay } from './cli/reports.js';
 import { cmdPrune, cmdInject, cmdInjectDb, cmdDbSnapshotPrune, resolveInjectConfigPath } from './cli/inject.js';
 
@@ -281,6 +282,7 @@ switch (command) {
   }
   case 'config':      run(() => cmdConfig(rest)); break;
   case 'policy':      run(() => cmdPolicy(rest)); break;
+  case 'level':       run(() => cmdLevel(rest)); break;
   case 'proxy':       run(() => cmdProxy(rest)); break;
   case 'export':      run(() => cmdExport(rest)); break;
   case 'prune':       run(() => cmdPrune(rest)); break;

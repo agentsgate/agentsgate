@@ -1,5 +1,7 @@
 import http from 'node:http';
 import { operationFingerprint } from '../../utils/operation-fingerprint.js';
+import { resolveLevelAction } from '../../protection-levels.js';
+import type { ProtectionLevel, RuleCategory } from '../../protection-levels.js';
 import type { MCPOperation, ProxyDecision, ExecutionResult, RiskAssessment } from '../../types/interfaces.js';
 import type { RiskScoringEngine } from '../m6-risk/index.js';
 import type { InterventionController } from '../m7-intervention/index.js';
@@ -83,6 +85,12 @@ export interface PipelineModules {
   grantStore?: {
     consumeApprovalGrant(fingerprint: string): Promise<boolean>;
   };
+  /**
+   * Optional — decide on the category of the operation instead of purely on its
+   * score. See src/protection-levels.ts. Omitted, thresholds alone decide,
+   * which is the behaviour every release before levels existed had.
+   */
+  protectionLevel?: ProtectionLevel;
   /**
    * Optional — if present, every intercepted operation and its decision are
    * recorded in the telemetry buffer (anonymized, no PII).
@@ -199,6 +207,7 @@ export function createPipeline(modules: PipelineModules): ProxyConfig {
     intelligenceEngine,
     approvalQueue,
     grantStore,
+    protectionLevel,
     telemetry,
     rateLimiter,
     velocityDetector,
@@ -431,6 +440,30 @@ export function createPipeline(modules: PipelineModules): ProxyConfig {
       // Attach structured fired-rule details for transparency
       if (assessment.firedRuleDetails && assessment.firedRuleDetails.length > 0) {
         decision = { ...decision, firedRules: assessment.firedRuleDetails };
+      }
+
+      // Protection level — decides on the kind of operation rather than its
+      // score. Applied after the thresholds so it can loosen as well as
+      // tighten: `git status` and a one-row UPDATE score high enough to be
+      // stopped, and under `balanced` they are meant to run.
+      //
+      // Policy rules are applied after this and still win, so an operator's own
+      // rule beats the level.
+      if (protectionLevel) {
+        const categories = (assessment.firedRuleDetails ?? [])
+          .map(r => r.category)
+          .filter((c): c is RuleCategory => typeof c === 'string');
+        const levelAction = resolveLevelAction(protectionLevel, categories);
+        if (levelAction !== null && levelAction !== decision.action) {
+          decision = {
+            ...decision,
+            action: levelAction,
+            reasons: [
+              ...decision.reasons,
+              `Protection level "${protectionLevel.name}" → ${levelAction}`,
+            ],
+          };
+        }
       }
 
       // Policy action override — forces action after threshold-based decision
