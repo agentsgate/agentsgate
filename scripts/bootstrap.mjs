@@ -12,7 +12,23 @@ async function main() {
   await fs.mkdir(path.join(rootDir, 'logs'), { recursive: true });
   await fs.mkdir(path.join(os.homedir(), '.agentsgate'), { recursive: true });
 
-  await run(npmCmd, process.env.CI ? ['ci'] : ['install']);
+  // --ignore-scripts, then rebuild only what genuinely needs a script.
+  //
+  // `npm ci` runs node-gyp against better-sqlite3 even though it sets
+  // `gypfile: false` and ships a prebuilt binary for every platform it
+  // supports; `npm install` honours the flag and does not. On Windows that
+  // difference is fatal — node-gyp's configure step needs a Visual Studio
+  // installation before it can decide there is nothing to compile — so a
+  // Windows checkout could not run `npm ci` at all.
+  //
+  // esbuild and fsevents are the only packages here with install scripts, so
+  // naming them costs nothing and means no other dependency gets to run code
+  // during setup. fsevents is macOS-only and optional; ignore a failure.
+  await run(npmCmd, process.env.CI ? ['ci', '--ignore-scripts'] : ['install']);
+  if (process.env.CI) {
+    await run(npmCmd, ['rebuild', 'esbuild']);
+    await run(npmCmd, ['rebuild', 'fsevents']).catch(() => {});
+  }
   await run(npmCmd, ['run', 'build']);
   await run(npmCmd, ['run', 'typecheck']);
   await run(npmCmd, ['test']);
@@ -26,8 +42,8 @@ async function main() {
 
 function assertNodeVersion() {
   const major = Number(process.versions.node.split('.')[0]);
-  if (Number.isNaN(major) || major < 20) {
-    throw new Error(`AgentsGate requires Node.js 20+. Current version: ${process.versions.node}`);
+  if (Number.isNaN(major) || major < 22) {
+    throw new Error(`AgentsGate requires Node.js 22+. Current version: ${process.versions.node}`);
   }
 }
 
