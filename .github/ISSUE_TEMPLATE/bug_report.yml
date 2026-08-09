@@ -43,7 +43,7 @@ body:
     id: node
     attributes:
       label: Node version
-      description: "`node --version` (AgentsGate requires >= 20)"
+      description: "`node --version` (AgentsGate requires >= 22)"
     validations:
       required: true
 
