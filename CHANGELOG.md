@@ -2,6 +2,41 @@
 
 ---
 
+## [0.2.0] — 2026-08-09
+
+### Changed
+
+- **Node.js 22 is now the minimum.** Node 20 reached end of life on 2026-04-30
+  and no longer receives security patches; a tool whose whole job is to reduce
+  risk should not be the reason someone keeps an unsupported runtime around.
+  `engines`, the CI matrix and the install guide all move to 22.
+
+- **`better-sqlite3` 12 → 13, which removes the deprecation notice on install.**
+  `npm install -g agentsgate` opened with
+  `npm warn deprecated prebuild-install@7.1.3: No longer maintained` — a
+  transitive dependency of `better-sqlite3` 12, and the first line a new user
+  saw. 13 drops `prebuild-install` and ships prebuilt binaries for all eight
+  supported platforms inside the tarball.
+
+  The warning was the visible part; the mechanism mattered more. Under 12 the
+  install fetched a binary from GitHub at install time and fell back to
+  compiling from source when that failed, so an offline machine, a firewalled
+  network or a GitHub outage turned a 3-second install into a compile that
+  needs a toolchain. 13 has nothing to fetch. Install drops to ~1s and 31
+  packages leave the tree, `tar-fs` among them.
+
+### Fixed
+
+- **Four vulnerable production dependencies.** Advisories published after 0.1.3
+  left `npm audit --omit=dev` — a blocking CI gate — failing on `fast-uri`
+  (host confusion), `ip-address` (leading-zero octet parsing), `brace-expansion`
+  (DoS) and `hono` (CORS ReDoS). All four were already fixed upstream and
+  reachable within our existing ranges; the lockfile was pinning the older
+  resolutions. `@modelcontextprotocol/sdk` 1.29.0 → 1.30.0, `minimatch`
+  10.2.5 → 10.2.6, `hono` 4.12.28 → 4.13.1.
+
+---
+
 ## [0.1.3] — 2026-07-31
 
 ### Changed

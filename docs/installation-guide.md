@@ -26,7 +26,7 @@ Before installing AgentsGate, make sure you have:
 
 | Requirement | Minimum Version | How to check |
 |-------------|----------------|--------------|
-| Node.js | 20.0.0 or newer | `node --version` |
+| Node.js | 22.0.0 or newer | `node --version` |
 | npm | 8.0.0 or newer | `npm --version` |
 | Git | Any recent version | `git --version` |
 
@@ -37,7 +37,7 @@ If you don't have Node.js installed, download it from **https://nodejs.org** and
 After installation, open a terminal and verify:
 
 ```bash
-node --version   # Should print v20.x.x or higher
+node --version   # Should print v22.x.x or higher
 npm --version    # Should print 8.x.x or higher
 ```
 
@@ -57,7 +57,7 @@ Verify the installation:
 agentsgate --version
 ```
 
-You should see output like `AgentsGate v0.1.3` — the version prints on its own line.
+You should see output like `AgentsGate v0.2.0` — the version prints on its own line.
 
 > **Tip:** If you get a "permission denied" error on macOS/Linux, prefix the command with `sudo`:
 > ```bash
@@ -324,7 +324,7 @@ AgentsGateをインストールする前に、以下が必要です：
 
 | 必要なもの | 最低バージョン | 確認方法 |
 |-----------|--------------|---------|
-| Node.js | 20.0.0以上 | `node --version` |
+| Node.js | 22.0.0以上 | `node --version` |
 | npm | 8.0.0以上 | `npm --version` |
 | Git | 最近のバージョンであれば可 | `git --version` |
 
@@ -335,7 +335,7 @@ Node.jsがインストールされていない場合は、**https://nodejs.org**
 インストール後、ターミナルを開いて確認します：
 
 ```bash
-node --version   # v20.x.x以上が表示されるはず
+node --version   # v22.x.x以上が表示されるはず
 npm --version    # 8.x.x以上が表示されるはず
 ```
 
@@ -355,7 +355,7 @@ npm install -g agentsgate
 agentsgate --version
 ```
 
-`AgentsGate v0.1.3` のような出力が表示されます（バージョンのみが出力されます）。
+`AgentsGate v0.2.0` のような出力が表示されます（バージョンのみが出力されます）。
 
 > **ヒント：** macOS/Linuxで「permission denied（権限エラー）」が出た場合は、コマンドの前に`sudo`を付けてください：
 > ```bash

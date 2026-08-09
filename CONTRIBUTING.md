@@ -15,7 +15,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 
 ## Development setup
 
-Requires **Node.js ≥ 20**.
+Requires **Node.js ≥ 22**.
 
 ```bash
 git clone https://github.com/agentsgate/agentsgate.git

@@ -30,7 +30,7 @@ Liveness check. Always public (no API key required).
 ```json
 {
   "status": "ok",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "uptimeMs": 3600000,
   "startedAt": "2026-07-31T10:06:54.748Z",
   "db": {
