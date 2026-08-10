@@ -27,7 +27,7 @@ Before installing AgentsGate, make sure you have:
 | Requirement | Minimum Version | How to check |
 |-------------|----------------|--------------|
 | Node.js | 22.0.0 or newer | `node --version` |
-| npm | 8.0.0 or newer | `npm --version` |
+| npm | 10.0.0 or newer | `npm --version` |
 | Git | Any recent version | `git --version` |
 
 ### Installing Node.js
@@ -38,7 +38,7 @@ After installation, open a terminal and verify:
 
 ```bash
 node --version   # Should print v22.x.x or higher
-npm --version    # Should print 8.x.x or higher
+npm --version    # Should print 10.x.x or higher
 ```
 
 ---
@@ -325,7 +325,7 @@ AgentsGateをインストールする前に、以下が必要です：
 | 必要なもの | 最低バージョン | 確認方法 |
 |-----------|--------------|---------|
 | Node.js | 22.0.0以上 | `node --version` |
-| npm | 8.0.0以上 | `npm --version` |
+| npm | 10.0.0以上 | `npm --version` |
 | Git | 最近のバージョンであれば可 | `git --version` |
 
 ### Node.jsのインストール
@@ -336,7 +336,7 @@ Node.jsがインストールされていない場合は、**https://nodejs.org**
 
 ```bash
 node --version   # v22.x.x以上が表示されるはず
-npm --version    # 8.x.x以上が表示されるはず
+npm --version    # 10.x.x以上が表示されるはず
 ```
 
 ---
